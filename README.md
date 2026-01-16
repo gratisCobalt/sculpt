@@ -15,7 +15,7 @@ Sculpt ist eine moderne Fitness-App für das Tracking von Workouts, Trainingsfor
 
 ### Voraussetzungen
 
-- [Node.js](https://nodejs.org/) (v18+)
+- [Node.js](https://nodejs.org/) (v22+)
 - [Docker](https://www.docker.com/) & Docker Compose
 - [Git](https://git-scm.com/)
 
