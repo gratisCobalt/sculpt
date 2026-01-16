@@ -1,5 +1,4 @@
 name = "sculpt"
-main = "workers-site/index.js"
 
 [site]
 bucket = "./dist"
