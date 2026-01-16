@@ -22,8 +22,8 @@ Sculpt ist eine moderne Fitness-App für das Tracking von Workouts, Trainingsfor
 ### 1. Repository klonen
 
 ```bash
-git clone https://github.com/your-username/sculpt-native.git
-cd sculpt-native
+git clone https://github.com/gratisCobalt/sculpt-self-hosted.git
+cd sculpt-self-hosted
 ```
 
 ### 2. Dependencies installieren
@@ -58,11 +58,7 @@ Die Datenbank wird automatisch mit dem Schema initialisiert (aus `db/init/`).
 Erstelle eine `.env` Datei im Root-Verzeichnis (falls nicht vorhanden):
 
 ```env
-# API
-VITE_API_BASE_URL=http://localhost:3000
-
-# Optional: Gemini API für KI-Features
-GEMINI_API_KEY=your_gemini_api_key
+COMING SOON...
 ```
 
 ### 5. Server starten
