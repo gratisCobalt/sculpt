@@ -1,0 +1,224 @@
+@import "tailwindcss";
+
+/* ===== CSS Variables (Design System) ===== */
+:root {
+  /* Primary Colors */
+  --primary: 85 78% 64%;
+  --primary-foreground: 0 0% 5%;
+  
+  /* Accent */
+  --accent: 156 66% 55%;
+  --accent-foreground: 0 0% 5%;
+  
+  /* Background & Surfaces */
+  --background: 0 0% 1.5%;
+  --foreground: 0 0% 98%;
+  --surface-soft: 0 0% 6%;
+  --surface-strong: 0 0% 9%;
+  
+  /* Muted */
+  --muted: 0 0% 15%;
+  --muted-foreground: 0 0% 72%;
+  
+  /* Border & Ring */
+  --border: 0 0% 18%;
+  --ring: 85 78% 64%;
+  
+  /* Destructive */
+  --destructive: 0 75% 54%;
+  --destructive-foreground: 0 0% 98%;
+  
+  /* Card */
+  --card: 0 0% 6%;
+  --card-foreground: 0 0% 98%;
+  
+  /* Popover */
+  --popover: 0 0% 6%;
+  --popover-foreground: 0 0% 98%;
+  
+  /* Input */
+  --input: 0 0% 18%;
+  
+  /* Secondary */
+  --secondary: 0 0% 15%;
+  --secondary-foreground: 0 0% 98%;
+  
+  /* Radius */
+  --radius: 0.75rem;
+}
+
+/* ===== Base Styles ===== */
+* {
+  border-color: hsl(var(--border));
+}
+
+body {
+  margin: 0;
+  background-color: hsl(var(--background));
+  color: hsl(var(--foreground));
+  font-family: 'Inter', system-ui, -apple-system, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  min-height: 100dvh;
+}
+
+/* ===== Glasmorphismus Effekte ===== */
+.glass {
+  background: rgba(255, 255, 255, 0.03);
+  backdrop-filter: blur(18px);
+  -webkit-backdrop-filter: blur(18px);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.glass-hover {
+  transition: all 0.3s ease;
+}
+
+.glass-hover:hover {
+  background: rgba(255, 255, 255, 0.06);
+  border-color: rgba(255, 255, 255, 0.12);
+}
+
+.glass-active {
+  background: rgba(163, 230, 53, 0.1);
+  border-color: rgba(163, 230, 53, 0.3);
+}
+
+/* ===== Gradient Utilities ===== */
+.gradient-primary {
+  background: linear-gradient(135deg, hsl(85 78% 64%) 0%, hsl(156 66% 55%) 100%);
+}
+
+.gradient-primary-text {
+  background: linear-gradient(135deg, hsl(85 78% 64%) 0%, hsl(156 66% 55%) 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+.gradient-shadow {
+  box-shadow: 0 8px 32px -8px rgba(163, 230, 53, 0.4),
+              0 4px 16px -4px rgba(52, 211, 153, 0.3);
+}
+
+/* ===== Glow Effects ===== */
+.glow-primary {
+  box-shadow: 0 0 20px rgba(163, 230, 53, 0.3),
+              0 0 40px rgba(163, 230, 53, 0.1);
+}
+
+.glow-accent {
+  box-shadow: 0 0 20px rgba(52, 211, 153, 0.3),
+              0 0 40px rgba(52, 211, 153, 0.1);
+}
+
+/* ===== Mobile Container ===== */
+.mobile-container {
+  max-width: 428px;
+  margin-left: auto;
+  margin-right: auto;
+  min-height: 100dvh;
+}
+
+/* ===== Custom Scrollbar ===== */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: hsl(var(--surface-soft));
+}
+
+::-webkit-scrollbar-thumb {
+  background: hsl(var(--border));
+  border-radius: 3px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: hsl(var(--muted-foreground));
+}
+
+/* ===== Safe Area Insets (PWA) ===== */
+.safe-top {
+  padding-top: env(safe-area-inset-top);
+}
+
+.safe-bottom {
+  padding-bottom: env(safe-area-inset-bottom);
+}
+
+/* ===== Animation Utilities ===== */
+@keyframes fade-in {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes slide-up {
+  from {
+    opacity: 0;
+    transform: translateY(100%);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes scale-in {
+  from {
+    opacity: 0;
+    transform: scale(0.95);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+@keyframes pulse-glow {
+  0%, 100% {
+    box-shadow: 0 0 20px rgba(163, 230, 53, 0.3);
+  }
+  50% {
+    box-shadow: 0 0 40px rgba(163, 230, 53, 0.5);
+  }
+}
+
+.animate-fade-in {
+  animation: fade-in 0.3s ease-out;
+}
+
+.animate-slide-up {
+  animation: slide-up 0.3s ease-out;
+}
+
+.animate-scale-in {
+  animation: scale-in 0.2s ease-out;
+}
+
+.animate-pulse-glow {
+  animation: pulse-glow 2s ease-in-out infinite;
+}
+
+/* ===== Touch Optimizations ===== */
+.touch-target {
+  min-height: 44px;
+  min-width: 44px;
+}
+
+/* ===== Hide scrollbar but allow scroll ===== */
+.no-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
