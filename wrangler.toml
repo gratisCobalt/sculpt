@@ -1,0 +1,6 @@
+name = "sculpt"
+type = "javascript"
+
+[site]
+bucket = "./dist"
+entry-point = "workers-site"
