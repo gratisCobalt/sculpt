@@ -1,6 +1,5 @@
 name = "sculpt"
-type = "javascript"
+main = "workers-site/index.js"
 
 [site]
 bucket = "./dist"
-entry-point = "workers-site"
