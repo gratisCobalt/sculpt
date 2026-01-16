@@ -678,6 +678,51 @@ app.post('/api/workouts', authMiddleware, async (req, res) => {
   }
 })
 
+// Get last workout data for a specific exercise (for placeholder hints)
+app.get('/api/exercises/:id/last-workout', authMiddleware, async (req, res) => {
+  const { id } = req.params
+  
+  try {
+    const result = await pool.query(`
+      SELECT 
+        ws.set_number,
+        ws.weight_kg,
+        ws.reps,
+        ws.is_warmup,
+        wse.started_at
+      FROM workout_set ws
+      JOIN workout_session wse ON ws.workout_session_id = wse.id
+      WHERE wse.user_id = $1 
+        AND ws.exercise_id = $2
+        AND wse.started_at = (
+          SELECT MAX(wse2.started_at) 
+          FROM workout_session wse2 
+          JOIN workout_set ws2 ON wse2.id = ws2.workout_session_id
+          WHERE wse2.user_id = $1 AND ws2.exercise_id = $2
+        )
+      ORDER BY ws.set_number ASC
+    `, [(req as any).userId, id])
+    
+    // Return als Object mit set_number als Key für einfachen Zugriff
+    const setsByNumber: Record<number, { weight: number; reps: number; isWarmup: boolean }> = {}
+    for (const row of result.rows) {
+      setsByNumber[row.set_number] = {
+        weight: parseFloat(row.weight_kg),
+        reps: row.reps,
+        isWarmup: row.is_warmup
+      }
+    }
+    
+    res.json({
+      lastWorkoutDate: result.rows[0]?.started_at || null,
+      sets: setsByNumber
+    })
+  } catch (e) {
+    console.error('Get last workout error:', e)
+    res.status(500).json({ error: 'Failed to get last workout' })
+  }
+})
+
 app.get('/api/workouts', authMiddleware, async (req, res) => {
   const { limit = 20 } = req.query
   
@@ -2162,6 +2207,563 @@ Erstelle jetzt den Trainingsplan im TOON-Format:`
   } catch (e) {
     console.error('Generate training plan error:', e)
     res.status(500).json({ error: 'Failed to generate training plan' })
+  }
+})
+
+// =====================================================
+// LEADERBOARD ROUTES
+// =====================================================
+
+// Get weekly leaderboard (buddies + global + fake users)
+app.get('/api/leaderboard/weekly', authMiddleware, async (req, res) => {
+  const userId = (req as any).userId
+  
+  try {
+    // Get user's buddies
+    const buddiesResult = await pool.query(`
+      SELECT 
+        CASE 
+          WHEN f.requester_id = $1 THEN f.addressee_id 
+          ELSE f.requester_id 
+        END as buddy_id
+      FROM friendship f
+      WHERE (f.requester_id = $1 OR f.addressee_id = $1)
+      AND f.status_id = (SELECT id FROM friendship_status WHERE code = 'accepted')
+    `, [userId])
+    
+    const buddyIds = buddiesResult.rows.map(r => r.buddy_id)
+    buddyIds.push(userId) // Include self
+    
+    // Get current user's league
+    const userLeague = await pool.query('SELECT league_id FROM app_user WHERE id = $1', [userId])
+    const leagueId = userLeague.rows[0]?.league_id || 1
+    
+    // Get real users with their weekly stats
+    const realUsersResult = await pool.query(`
+      WITH user_weekly_stats AS (
+        SELECT 
+          u.id,
+          u.display_name,
+          u.avatar_url,
+          u.fitness_goal,
+          u.current_streak,
+          u.xp_total,
+          u.current_level,
+          u.league_id,
+          COALESCE(SUM(ws.total_volume_kg), 0)::INTEGER as weekly_volume_kg,
+          COUNT(DISTINCT ws.id)::INTEGER as weekly_workout_count
+        FROM app_user u
+        LEFT JOIN workout_session ws ON ws.user_id = u.id 
+          AND ws.completed_at >= date_trunc('week', CURRENT_DATE)
+        WHERE u.onboarding_completed = TRUE
+        GROUP BY u.id
+      )
+      SELECT 
+        id,
+        display_name,
+        avatar_url,
+        fitness_goal,
+        current_streak,
+        xp_total,
+        current_level,
+        league_id,
+        weekly_volume_kg,
+        weekly_workout_count,
+        FALSE as is_fake,
+        CASE WHEN id = ANY($1::uuid[]) THEN TRUE ELSE FALSE END as is_buddy
+      FROM user_weekly_stats
+      ORDER BY weekly_volume_kg DESC
+    `, [buddyIds])
+    
+    // Get fake users from same league or adjacent
+    const fakeUsersResult = await pool.query(`
+      SELECT 
+        id,
+        display_name,
+        avatar_url,
+        fitness_goal,
+        current_streak,
+        xp_total,
+        current_level,
+        league_id,
+        weekly_volume_kg,
+        weekly_workout_count,
+        TRUE as is_fake,
+        FALSE as is_buddy
+      FROM fake_user
+      WHERE is_active = TRUE
+      AND league_id BETWEEN $1 - 1 AND $1 + 1
+      ORDER BY weekly_volume_kg DESC
+    `, [leagueId])
+    
+    // Combine and sort
+    const allUsers = [...realUsersResult.rows, ...fakeUsersResult.rows]
+      .sort((a, b) => b.weekly_volume_kg - a.weekly_volume_kg)
+      .map((user, index) => ({
+        ...user,
+        rank: index + 1
+      }))
+    
+    // Get league info
+    const leagueInfo = await pool.query(`
+      SELECT * FROM league_tier WHERE id = $1
+    `, [leagueId])
+    
+    // Get level info for current user
+    const levelInfo = await pool.query(`
+      SELECT * FROM user_level WHERE level = (
+        SELECT current_level FROM app_user WHERE id = $1
+      )
+    `, [userId])
+    
+    const nextLevelInfo = await pool.query(`
+      SELECT * FROM user_level WHERE level = (
+        SELECT current_level + 1 FROM app_user WHERE id = $1
+      )
+    `, [userId])
+    
+    res.json({
+      leaderboard: allUsers,
+      currentUserRank: allUsers.findIndex(u => u.id === userId) + 1,
+      league: leagueInfo.rows[0],
+      level: levelInfo.rows[0],
+      nextLevel: nextLevelInfo.rows[0] || null,
+      totalParticipants: allUsers.length
+    })
+  } catch (error) {
+    console.error('Error fetching leaderboard:', error)
+    res.status(500).json({ error: 'Failed to fetch leaderboard' })
+  }
+})
+
+// Get all leagues with user counts
+app.get('/api/leagues', authMiddleware, async (req, res) => {
+  try {
+    const result = await pool.query(`
+      SELECT 
+        lt.*,
+        COUNT(DISTINCT u.id)::INTEGER as user_count,
+        COUNT(DISTINCT f.id)::INTEGER as fake_user_count
+      FROM league_tier lt
+      LEFT JOIN app_user u ON u.league_id = lt.id
+      LEFT JOIN fake_user f ON f.league_id = lt.id AND f.is_active = TRUE
+      GROUP BY lt.id
+      ORDER BY lt.tier_order
+    `)
+    
+    res.json(result.rows)
+  } catch (error) {
+    console.error('Error fetching leagues:', error)
+    res.status(500).json({ error: 'Failed to fetch leagues' })
+  }
+})
+
+// Get all levels
+app.get('/api/levels', async (req, res) => {
+  try {
+    const result = await pool.query('SELECT * FROM user_level ORDER BY level')
+    res.json(result.rows)
+  } catch (error) {
+    console.error('Error fetching levels:', error)
+    res.status(500).json({ error: 'Failed to fetch levels' })
+  }
+})
+
+// Get fitness goals
+app.get('/api/fitness-goals', async (req, res) => {
+  try {
+    const result = await pool.query('SELECT * FROM fitness_goal ORDER BY id')
+    res.json(result.rows)
+  } catch (error) {
+    console.error('Error fetching fitness goals:', error)
+    res.status(500).json({ error: 'Failed to fetch fitness goals' })
+  }
+})
+
+// =====================================================
+// CHALLENGE ROUTES
+// =====================================================
+
+// Get challenge types
+app.get('/api/challenges/types', authMiddleware, async (req, res) => {
+  try {
+    const result = await pool.query('SELECT * FROM challenge_type ORDER BY id')
+    res.json(result.rows)
+  } catch (error) {
+    console.error('Error fetching challenge types:', error)
+    res.status(500).json({ error: 'Failed to fetch challenge types' })
+  }
+})
+
+// Get user's active and pending challenges
+app.get('/api/challenges', authMiddleware, async (req, res) => {
+  const userId = (req as any).userId
+  
+  try {
+    const result = await pool.query(`
+      SELECT 
+        bc.*,
+        ct.code as challenge_type_code,
+        ct.name_de as challenge_type_name,
+        ct.icon_name as challenge_type_icon,
+        ct.metric,
+        challenger.display_name as challenger_name,
+        challenger.avatar_url as challenger_avatar,
+        challenger.fitness_goal as challenger_goal,
+        opponent.display_name as opponent_name,
+        opponent.avatar_url as opponent_avatar,
+        opponent.fitness_goal as opponent_goal,
+        e.name_de as exercise_name
+      FROM buddy_challenge bc
+      JOIN challenge_type ct ON ct.id = bc.challenge_type_id
+      JOIN app_user challenger ON challenger.id = bc.challenger_id
+      JOIN app_user opponent ON opponent.id = bc.opponent_id
+      LEFT JOIN exercise e ON e.id = bc.exercise_id
+      WHERE (bc.challenger_id = $1 OR bc.opponent_id = $1)
+      AND bc.status IN ('pending', 'active')
+      ORDER BY bc.created_at DESC
+    `, [userId])
+    
+    res.json(result.rows)
+  } catch (error) {
+    console.error('Error fetching challenges:', error)
+    res.status(500).json({ error: 'Failed to fetch challenges' })
+  }
+})
+
+// Get challenge history
+app.get('/api/challenges/history', authMiddleware, async (req, res) => {
+  const userId = (req as any).userId
+  const limit = parseInt(req.query.limit as string) || 20
+  
+  try {
+    const result = await pool.query(`
+      SELECT 
+        bc.*,
+        ct.code as challenge_type_code,
+        ct.name_de as challenge_type_name,
+        ct.icon_name as challenge_type_icon,
+        challenger.display_name as challenger_name,
+        challenger.avatar_url as challenger_avatar,
+        opponent.display_name as opponent_name,
+        opponent.avatar_url as opponent_avatar,
+        e.name_de as exercise_name
+      FROM buddy_challenge bc
+      JOIN challenge_type ct ON ct.id = bc.challenge_type_id
+      JOIN app_user challenger ON challenger.id = bc.challenger_id
+      JOIN app_user opponent ON opponent.id = bc.opponent_id
+      LEFT JOIN exercise e ON e.id = bc.exercise_id
+      WHERE (bc.challenger_id = $1 OR bc.opponent_id = $1)
+      AND bc.status IN ('completed', 'cancelled', 'declined')
+      ORDER BY bc.ends_at DESC
+      LIMIT $2
+    `, [userId, limit])
+    
+    res.json(result.rows)
+  } catch (error) {
+    console.error('Error fetching challenge history:', error)
+    res.status(500).json({ error: 'Failed to fetch challenge history' })
+  }
+})
+
+// Create a challenge
+app.post('/api/challenges', authMiddleware, async (req, res) => {
+  const userId = (req as any).userId
+  const { 
+    opponentId, 
+    challengeTypeId, 
+    exerciseId, 
+    targetValue, 
+    wagerCoins,
+    endsAt,
+    durationPreset // '1h', '1d', 'week', 'custom'
+  } = req.body
+  
+  try {
+    // Verify friendship exists
+    const friendshipResult = await pool.query(`
+      SELECT id FROM friendship
+      WHERE ((requester_id = $1 AND addressee_id = $2) OR (requester_id = $2 AND addressee_id = $1))
+      AND status_id = (SELECT id FROM friendship_status WHERE code = 'accepted')
+    `, [userId, opponentId])
+    
+    if (friendshipResult.rows.length === 0) {
+      return res.status(400).json({ error: 'Must be buddies to challenge' })
+    }
+    
+    const friendshipId = friendshipResult.rows[0].id
+    
+    // Calculate end time based on preset
+    let calculatedEndsAt = endsAt
+    if (durationPreset && !endsAt) {
+      const now = new Date()
+      switch (durationPreset) {
+        case '1h':
+          calculatedEndsAt = new Date(now.getTime() + 60 * 60 * 1000).toISOString()
+          break
+        case '1d':
+          calculatedEndsAt = new Date(now.getTime() + 24 * 60 * 60 * 1000).toISOString()
+          break
+        case 'week':
+          // End of current week (Sunday 23:59:59)
+          const endOfWeek = new Date(now)
+          endOfWeek.setDate(now.getDate() + (7 - now.getDay()))
+          endOfWeek.setHours(23, 59, 59, 999)
+          calculatedEndsAt = endOfWeek.toISOString()
+          break
+      }
+    }
+    
+    // If wager, check user has enough coins
+    if (wagerCoins && wagerCoins > 0) {
+      const userCoins = await pool.query('SELECT hantel_coins FROM app_user WHERE id = $1', [userId])
+      if (userCoins.rows[0].hantel_coins < wagerCoins) {
+        return res.status(400).json({ error: 'Not enough coins' })
+      }
+    }
+    
+    // Calculate XP reward based on duration
+    let xpReward = 100 // base
+    if (durationPreset === '1h') xpReward = 50
+    else if (durationPreset === '1d') xpReward = 100
+    else if (durationPreset === 'week') xpReward = 250
+    else xpReward = 150 // custom
+    
+    const result = await pool.query(`
+      INSERT INTO buddy_challenge (
+        friendship_id, challenge_type_id, exercise_id,
+        challenger_id, opponent_id,
+        target_value, wager_coins, ends_at, xp_reward
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+      RETURNING *
+    `, [
+      friendshipId, challengeTypeId, exerciseId || null,
+      userId, opponentId,
+      targetValue || null, wagerCoins || 0, calculatedEndsAt, xpReward
+    ])
+    
+    // Add to activity feed
+    await pool.query(`
+      INSERT INTO activity_feed_item (user_id, activity_type, title_de, title_en, description_de, visibility)
+      VALUES ($1, 'challenge', 'Hat eine Challenge gestartet', 'Started a challenge', $2, 'friends')
+    `, [userId, `Challenge gegen ${opponentId}`])
+    
+    res.json(result.rows[0])
+  } catch (error) {
+    console.error('Error creating challenge:', error)
+    res.status(500).json({ error: 'Failed to create challenge' })
+  }
+})
+
+// Accept a challenge
+app.patch('/api/challenges/:id/accept', authMiddleware, async (req, res) => {
+  const userId = (req as any).userId
+  const challengeId = parseInt(req.params.id as string)
+  
+  try {
+    // Verify user is the opponent and challenge is pending
+    const challenge = await pool.query(`
+      SELECT * FROM buddy_challenge WHERE id = $1 AND opponent_id = $2 AND status = 'pending'
+    `, [challengeId, userId])
+    
+    if (challenge.rows.length === 0) {
+      return res.status(404).json({ error: 'Challenge not found or already accepted' })
+    }
+    
+    const wagerCoins = challenge.rows[0].wager_coins
+    
+    // If wager, check and deduct coins from both users
+    if (wagerCoins > 0) {
+      const userCoins = await pool.query('SELECT hantel_coins FROM app_user WHERE id = $1', [userId])
+      if (userCoins.rows[0].hantel_coins < wagerCoins) {
+        return res.status(400).json({ error: 'Not enough coins for wager' })
+      }
+      
+      // Deduct from both
+      await pool.query('UPDATE app_user SET hantel_coins = hantel_coins - $1 WHERE id = $2', [wagerCoins, userId])
+      await pool.query('UPDATE app_user SET hantel_coins = hantel_coins - $1 WHERE id = $2', [wagerCoins, challenge.rows[0].challenger_id])
+    }
+    
+    const result = await pool.query(`
+      UPDATE buddy_challenge 
+      SET status = 'active', accepted_at = NOW(), starts_at = NOW()
+      WHERE id = $1
+      RETURNING *
+    `, [challengeId])
+    
+    res.json(result.rows[0])
+  } catch (error) {
+    console.error('Error accepting challenge:', error)
+    res.status(500).json({ error: 'Failed to accept challenge' })
+  }
+})
+
+// Decline a challenge
+app.patch('/api/challenges/:id/decline', authMiddleware, async (req, res) => {
+  const userId = (req as any).userId
+  const challengeId = parseInt(req.params.id as string)
+  
+  try {
+    const result = await pool.query(`
+      UPDATE buddy_challenge 
+      SET status = 'declined'
+      WHERE id = $1 AND opponent_id = $2 AND status = 'pending'
+      RETURNING *
+    `, [challengeId, userId])
+    
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'Challenge not found' })
+    }
+    
+    res.json(result.rows[0])
+  } catch (error) {
+    console.error('Error declining challenge:', error)
+    res.status(500).json({ error: 'Failed to decline challenge' })
+  }
+})
+
+// Cancel a challenge (only challenger before accepted)
+app.patch('/api/challenges/:id/cancel', authMiddleware, async (req, res) => {
+  const userId = (req as any).userId
+  const challengeId = parseInt(req.params.id as string)
+  
+  try {
+    const result = await pool.query(`
+      UPDATE buddy_challenge 
+      SET status = 'cancelled'
+      WHERE id = $1 AND challenger_id = $2 AND status = 'pending'
+      RETURNING *
+    `, [challengeId, userId])
+    
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'Challenge not found or cannot be cancelled' })
+    }
+    
+    res.json(result.rows[0])
+  } catch (error) {
+    console.error('Error cancelling challenge:', error)
+    res.status(500).json({ error: 'Failed to cancel challenge' })
+  }
+})
+
+// Complete a challenge (called by cron or when time expires)
+app.post('/api/challenges/:id/complete', authMiddleware, async (req, res) => {
+  const challengeId = parseInt(req.params.id as string)
+  
+  try {
+    const challenge = await pool.query(`
+      SELECT bc.*, ct.metric FROM buddy_challenge bc
+      JOIN challenge_type ct ON ct.id = bc.challenge_type_id
+      WHERE bc.id = $1 AND bc.status = 'active'
+    `, [challengeId])
+    
+    if (challenge.rows.length === 0) {
+      return res.status(404).json({ error: 'Challenge not found' })
+    }
+    
+    const c = challenge.rows[0]
+    
+    // Determine winner
+    let winnerId = null
+    if (c.challenger_progress > c.opponent_progress) {
+      winnerId = c.challenger_id
+    } else if (c.opponent_progress > c.challenger_progress) {
+      winnerId = c.opponent_id
+    }
+    // If tied, no winner
+    
+    // Update challenge
+    await pool.query(`
+      UPDATE buddy_challenge 
+      SET status = 'completed', winner_id = $1
+      WHERE id = $2
+    `, [winnerId, challengeId])
+    
+    // Award XP to both participants (winner gets more)
+    const winnerXp = c.xp_reward
+    const loserXp = Math.floor(c.xp_reward * 0.5)
+    
+    if (winnerId) {
+      const loserId = winnerId === c.challenger_id ? c.opponent_id : c.challenger_id
+      
+      // Winner XP + coins
+      await pool.query(`SELECT add_user_xp($1, $2, 'challenge_win', $3, 'Challenge gewonnen')`, [winnerId, winnerXp, challengeId])
+      
+      // Loser XP (participation)
+      await pool.query(`SELECT add_user_xp($1, $2, 'challenge_participate', $3, 'Challenge teilgenommen')`, [loserId, loserXp, challengeId])
+      
+      // Transfer wager coins
+      if (c.wager_coins > 0) {
+        const totalPot = c.wager_coins * 2
+        await pool.query('UPDATE app_user SET hantel_coins = hantel_coins + $1 WHERE id = $2', [totalPot, winnerId])
+      }
+    } else {
+      // Tie - both get base XP, coins returned
+      await pool.query(`SELECT add_user_xp($1, $2, 'challenge_participate', $3, 'Challenge unentschieden')`, [c.challenger_id, loserXp, challengeId])
+      await pool.query(`SELECT add_user_xp($1, $2, 'challenge_participate', $3, 'Challenge unentschieden')`, [c.opponent_id, loserXp, challengeId])
+      
+      if (c.wager_coins > 0) {
+        await pool.query('UPDATE app_user SET hantel_coins = hantel_coins + $1 WHERE id = $2', [c.wager_coins, c.challenger_id])
+        await pool.query('UPDATE app_user SET hantel_coins = hantel_coins + $1 WHERE id = $2', [c.wager_coins, c.opponent_id])
+      }
+    }
+    
+    res.json({ winner_id: winnerId, message: 'Challenge completed' })
+  } catch (error) {
+    console.error('Error completing challenge:', error)
+    res.status(500).json({ error: 'Failed to complete challenge' })
+  }
+})
+
+// Get user XP/level info
+app.get('/api/user/level', authMiddleware, async (req, res) => {
+  const userId = (req as any).userId
+  
+  try {
+    const result = await pool.query(`
+      SELECT 
+        u.xp_total,
+        u.current_level,
+        u.league_id,
+        u.league_points,
+        ul.name_de as level_name,
+        ul.icon_name as level_icon,
+        ul.color_hex as level_color,
+        ul.xp_required as current_level_xp,
+        next_ul.xp_required as next_level_xp,
+        lt.code as league_code,
+        lt.name_de as league_name,
+        lt.icon_name as league_icon,
+        lt.color_hex as league_color
+      FROM app_user u
+      JOIN user_level ul ON ul.level = u.current_level
+      LEFT JOIN user_level next_ul ON next_ul.level = u.current_level + 1
+      JOIN league_tier lt ON lt.id = u.league_id
+      WHERE u.id = $1
+    `, [userId])
+    
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'User not found' })
+    }
+    
+    const data = result.rows[0]
+    
+    // Calculate progress to next level
+    const currentXp = data.xp_total
+    const currentLevelXp = data.current_level_xp
+    const nextLevelXp = data.next_level_xp || currentLevelXp
+    const progressPercent = nextLevelXp > currentLevelXp 
+      ? Math.min(100, Math.floor(((currentXp - currentLevelXp) / (nextLevelXp - currentLevelXp)) * 100))
+      : 100
+    
+    res.json({
+      ...data,
+      progress_percent: progressPercent,
+      xp_to_next: Math.max(0, nextLevelXp - currentXp)
+    })
+  } catch (error) {
+    console.error('Error fetching user level:', error)
+    res.status(500).json({ error: 'Failed to fetch user level' })
   }
 })
 

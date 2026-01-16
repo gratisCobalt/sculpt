@@ -10,17 +10,41 @@ import {
   Check,
   X,
   Clock,
-  MoreVertical,
-  Trash2,
+  Trophy,
+  Bell,
+  Swords,
+  Timer,
+  Zap,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { cn } from '@/lib/utils'
 import { api } from '@/lib/api'
+import type { LeaderboardUser, Challenge } from '@/lib/api'
 import { useAuth } from '@/contexts/AuthContext'
+import ChallengeModal from '@/components/ChallengeModal'
 
-type TabType = 'buddies' | 'requests' | 'feed'
+type TabType = 'buddies' | 'requests' | 'leaderboard' | 'challenges'
+
+// Fitness goal emoji mapping
+const GOAL_EMOJIS: Record<string, string> = {
+  muscle_gain: '💪',
+  fat_loss: '🔥',
+  strength: '⚡',
+  endurance: '🏃',
+  general: '❤️',
+}
+
+// League icon mapping
+const LEAGUE_ICONS: Record<string, string> = {
+  bronze: '🥉',
+  silver: '🥈',
+  gold: '🥇',
+  platinum: '💎',
+  diamond: '💠',
+  champion: '👑',
+}
 
 export default function BuddyPage() {
   const { user } = useAuth()
@@ -29,6 +53,8 @@ export default function BuddyPage() {
   const [activeTab, setActiveTab] = useState<TabType>('buddies')
   const [searchQuery, setSearchQuery] = useState('')
   const [isSearching, setIsSearching] = useState(false)
+  const [showChallengeModal, setShowChallengeModal] = useState(false)
+  const [selectedBuddyForChallenge, setSelectedBuddyForChallenge] = useState<any>(null)
 
   // Fetch buddies
   const { data: buddies = [], isLoading: buddiesLoading } = useQuery({
@@ -37,11 +63,25 @@ export default function BuddyPage() {
     enabled: !!user,
   })
 
-  // Fetch activity feed
-  const { data: activityFeed = [], isLoading: feedLoading } = useQuery({
-    queryKey: ['activityFeed'],
-    queryFn: () => api.getActivityFeed(),
-    enabled: !!user && activeTab === 'feed',
+  // Fetch leaderboard
+  const { data: leaderboardData, isLoading: leaderboardLoading } = useQuery({
+    queryKey: ['leaderboard'],
+    queryFn: () => api.getWeeklyLeaderboard(),
+    enabled: !!user && activeTab === 'leaderboard',
+  })
+
+  // Fetch user level info
+  const { data: levelInfo } = useQuery({
+    queryKey: ['userLevel'],
+    queryFn: () => api.getUserLevel(),
+    enabled: !!user,
+  })
+
+  // Fetch active challenges
+  const { data: activeChallenges = [], isLoading: challengesLoading } = useQuery({
+    queryKey: ['activeChallenges'],
+    queryFn: () => api.getActiveChallenges(),
+    enabled: !!user && activeTab === 'challenges',
   })
 
   // Search users
@@ -67,19 +107,14 @@ export default function BuddyPage() {
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['buddies'] }),
   })
 
-  const removeBuddyMutation = useMutation({
-    mutationFn: (friendshipId: number) => api.removeBuddy(friendshipId),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['buddies'] }),
+  const acceptChallengeMutation = useMutation({
+    mutationFn: (challengeId: number) => api.acceptChallenge(challengeId),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['activeChallenges'] }),
   })
 
-  const sendReminderMutation = useMutation({
-    mutationFn: (friendshipId: number) => api.sendBuddyReminder(friendshipId),
-  })
-
-  const sendCongratsMutation = useMutation({
-    mutationFn: ({ itemId, emoji }: { itemId: number; emoji: string }) =>
-      api.sendCongrats(itemId, emoji),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['activityFeed'] }),
+  const declineChallengeMutation = useMutation({
+    mutationFn: (challengeId: number) => api.declineChallenge(challengeId),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['activeChallenges'] }),
   })
 
   // Filter buddies
@@ -87,19 +122,37 @@ export default function BuddyPage() {
   const pendingRequests = buddies.filter((b) => b.status === 'pending' && b.direction === 'received')
   const sentRequests = buddies.filter((b) => b.status === 'pending' && b.direction === 'sent')
 
+  // Split challenges
+  const pendingChallenges = activeChallenges.filter(c => c.status === 'pending' && c.opponent_id === user?.id)
+  const runningChallenges = activeChallenges.filter(c => c.status === 'active')
+  const sentChallenges = activeChallenges.filter(c => c.status === 'pending' && c.challenger_id === user?.id)
+
+  const handleStartChallenge = (buddy: any) => {
+    setSelectedBuddyForChallenge(buddy)
+    setShowChallengeModal(true)
+  }
+
   return (
     <div className="min-h-screen pb-24 safe-top">
       {/* Header */}
       <div className="px-6 pt-6 pb-4">
         <div className="flex items-center justify-between mb-4">
           <h1 className="text-2xl font-bold">Buddies</h1>
-          <Button
-            variant="ghost"
-            size="icon"
-            onClick={() => setIsSearching(!isSearching)}
-          >
-            <UserPlus className="w-5 h-5" />
-          </Button>
+          <div className="flex items-center gap-2">
+            {levelInfo && (
+              <div className="flex items-center gap-1 px-2 py-1 rounded-lg bg-[hsl(var(--surface-soft))]">
+                <span className="text-sm">{LEAGUE_ICONS[levelInfo.league_code] || '🏆'}</span>
+                <span className="text-xs font-medium">Lv.{levelInfo.current_level}</span>
+              </div>
+            )}
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={() => setIsSearching(!isSearching)}
+            >
+              <UserPlus className="w-5 h-5" />
+            </Button>
+          </div>
         </div>
 
         {/* Search */}
@@ -124,15 +177,15 @@ export default function BuddyPage() {
                     Suche...
                   </p>
                 ) : searchResults.length > 0 ? (
-                  searchResults.map((user) => (
-                    <Card key={user.id}>
+                  searchResults.map((searchUser) => (
+                    <Card key={searchUser.id}>
                       <CardContent className="p-3 flex items-center justify-between">
                         <div className="flex items-center gap-3">
                           <div className="w-10 h-10 rounded-full bg-[hsl(var(--surface-strong))] flex items-center justify-center">
-                            {user.avatar_url ? (
+                            {searchUser.avatar_url ? (
                               <img
-                                src={user.avatar_url}
-                                alt={user.display_name}
+                                src={searchUser.avatar_url}
+                                alt={searchUser.display_name}
                                 className="w-full h-full rounded-full object-cover"
                               />
                             ) : (
@@ -140,15 +193,15 @@ export default function BuddyPage() {
                             )}
                           </div>
                           <div>
-                            <p className="font-medium">{user.display_name}</p>
+                            <p className="font-medium">{searchUser.display_name}</p>
                             <p className="text-xs text-[hsl(var(--muted-foreground))]">
-                              {user.current_streak} Wochen Streak
+                              {searchUser.current_streak} Wochen Streak
                             </p>
                           </div>
                         </div>
                         <Button
                           size="sm"
-                          onClick={() => sendRequestMutation.mutate(user.id)}
+                          onClick={() => sendRequestMutation.mutate(searchUser.id)}
                           disabled={sendRequestMutation.isPending}
                         >
                           <UserPlus className="w-4 h-4 mr-1" />
@@ -168,17 +221,18 @@ export default function BuddyPage() {
         )}
 
         {/* Tabs */}
-        <div className="flex gap-2 p-1 rounded-lg bg-[hsl(var(--surface-soft))]">
+        <div className="flex gap-1 p-1 rounded-lg bg-[hsl(var(--surface-soft))]">
           {[
             { id: 'buddies' as const, label: 'Buddies', count: acceptedBuddies.length },
             { id: 'requests' as const, label: 'Anfragen', count: pendingRequests.length },
-            { id: 'feed' as const, label: 'Feed', icon: Trophy },
+            { id: 'leaderboard' as const, label: '🏆' },
+            { id: 'challenges' as const, label: '⚔️', count: pendingChallenges.length },
           ].map((tab) => (
             <button
               key={tab.id}
               onClick={() => setActiveTab(tab.id)}
               className={cn(
-                'flex-1 px-3 py-2 rounded-md text-sm font-medium transition-all duration-200 flex items-center justify-center gap-2',
+                'flex-1 px-2 py-2 rounded-md text-sm font-medium transition-all duration-200 flex items-center justify-center gap-1',
                 activeTab === tab.id
                   ? 'bg-[hsl(var(--surface-strong))] text-[hsl(var(--foreground))]'
                   : 'text-[hsl(var(--muted-foreground))] hover:text-[hsl(var(--foreground))]'
@@ -207,8 +261,13 @@ export default function BuddyPage() {
                 <BuddyCard
                   key={buddy.friendship_id}
                   buddy={buddy}
-                  onChat={() => navigate(`/buddies/${buddy.id}/chat`)}
-                  onRemove={() => removeBuddyMutation.mutate(buddy.friendship_id)}
+                  onChat={() => navigate(`/buddies/${buddy.id}/chat`, { 
+                    state: { 
+                      buddyName: buddy.display_name, 
+                      avatarUrl: buddy.avatar_url,
+                      friendshipId: buddy.friendship_id
+                    } 
+                  })}
                 />
               ))
             ) : (
@@ -310,31 +369,173 @@ export default function BuddyPage() {
           </div>
         )}
 
-        {/* Activity Feed */}
-        {activeTab === 'feed' && (
-          <div className="space-y-3">
-            {feedLoading ? (
+        {/* Leaderboard */}
+        {activeTab === 'leaderboard' && (
+          <div className="space-y-4">
+            {/* League Info Card */}
+            {leaderboardData?.league && (
+              <Card className="overflow-hidden">
+                <div 
+                  className="p-4"
+                  style={{ 
+                    background: `linear-gradient(135deg, ${leaderboardData.league.color_hex}20, transparent)` 
+                  }}
+                >
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-3">
+                      <span className="text-3xl">{LEAGUE_ICONS[leaderboardData.league.code]}</span>
+                      <div>
+                        <p className="font-bold text-lg">{leaderboardData.league.name_de}</p>
+                        <p className="text-xs text-[hsl(var(--muted-foreground))]">
+                          Platz {leaderboardData.currentUserRank} von {leaderboardData.totalParticipants}
+                        </p>
+                      </div>
+                    </div>
+                    {leaderboardData.level && (
+                      <div className="text-right">
+                        <p className="text-sm font-medium">Level {leaderboardData.level.level}</p>
+                        <p className="text-xs text-[hsl(var(--muted-foreground))]">
+                          {leaderboardData.level.name_de}
+                        </p>
+                      </div>
+                    )}
+                  </div>
+                  
+                  {/* XP Progress */}
+                  {leaderboardData.nextLevel && (
+                    <div className="mt-3">
+                      <div className="flex justify-between text-xs mb-1">
+                        <span>XP Fortschritt</span>
+                        <span>{leaderboardData.nextLevel.xp_required - (leaderboardData.level?.xp_required || 0)} XP bis Level {leaderboardData.level.level + 1}</span>
+                      </div>
+                      <div className="h-2 rounded-full bg-[hsl(var(--surface-soft))] overflow-hidden">
+                        <div 
+                          className="h-full rounded-full bg-[hsl(var(--primary))] transition-all"
+                          style={{ width: `${Math.min(100, ((leaderboardData.level?.xp_required || 0) / leaderboardData.nextLevel.xp_required) * 100)}%` }}
+                        />
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </Card>
+            )}
+
+            {/* Leaderboard List */}
+            {leaderboardLoading ? (
               <p className="text-center text-[hsl(var(--muted-foreground))] py-8">Lädt...</p>
-            ) : activityFeed.length > 0 ? (
-              activityFeed.map((item) => (
-                <ActivityCard
-                  key={item.id}
-                  item={item}
-                  onCongrats={(emoji) =>
-                    sendCongratsMutation.mutate({ itemId: item.id, emoji })
-                  }
-                />
-              ))
+            ) : leaderboardData?.leaderboard && leaderboardData.leaderboard.length > 0 ? (
+              <div className="space-y-2">
+                {leaderboardData.leaderboard.slice(0, 50).map((entry) => (
+                  <LeaderboardRow 
+                    key={entry.id} 
+                    entry={entry} 
+                    isCurrentUser={entry.id === user?.id}
+                  />
+                ))}
+              </div>
             ) : (
               <EmptyState
                 icon={Trophy}
-                title="Kein Feed"
-                description="Sobald deine Buddies Erfolge erzielen, siehst du sie hier"
+                title="Keine Rangliste"
+                description="Trainiere diese Woche, um auf der Rangliste zu erscheinen!"
+              />
+            )}
+          </div>
+        )}
+
+        {/* Challenges */}
+        {activeTab === 'challenges' && (
+          <div className="space-y-4">
+            {/* Pending Challenges Received */}
+            {pendingChallenges.length > 0 && (
+              <div>
+                <h3 className="text-sm font-medium text-[hsl(var(--muted-foreground))] mb-2">
+                  Eingehende Challenges
+                </h3>
+                {pendingChallenges.map((challenge) => (
+                  <ChallengeCard
+                    key={challenge.id}
+                    challenge={challenge}
+                    currentUserId={user?.id}
+                    onAccept={() => acceptChallengeMutation.mutate(challenge.id)}
+                    onDecline={() => declineChallengeMutation.mutate(challenge.id)}
+                    isPending
+                  />
+                ))}
+              </div>
+            )}
+
+            {/* Active Challenges */}
+            {runningChallenges.length > 0 && (
+              <div>
+                <h3 className="text-sm font-medium text-[hsl(var(--muted-foreground))] mb-2">
+                  Laufende Challenges
+                </h3>
+                {runningChallenges.map((challenge) => (
+                  <ChallengeCard
+                    key={challenge.id}
+                    challenge={challenge}
+                    currentUserId={user?.id}
+                  />
+                ))}
+              </div>
+            )}
+
+            {/* Sent Challenges */}
+            {sentChallenges.length > 0 && (
+              <div>
+                <h3 className="text-sm font-medium text-[hsl(var(--muted-foreground))] mb-2">
+                  Gesendete Challenges
+                </h3>
+                {sentChallenges.map((challenge) => (
+                  <ChallengeCard
+                    key={challenge.id}
+                    challenge={challenge}
+                    currentUserId={user?.id}
+                    isSent
+                  />
+                ))}
+              </div>
+            )}
+
+            {challengesLoading ? (
+              <p className="text-center text-[hsl(var(--muted-foreground))] py-8">Lädt...</p>
+            ) : activeChallenges.length === 0 && (
+              <EmptyState
+                icon={Swords}
+                title="Keine Challenges"
+                description="Fordere einen Buddy zu einer Challenge heraus!"
+                action={
+                  acceptedBuddies.length > 0 ? (
+                    <Button onClick={() => handleStartChallenge(acceptedBuddies[0])}>
+                      <Swords className="w-4 h-4 mr-2" />
+                      Challenge starten
+                    </Button>
+                  ) : undefined
+                }
               />
             )}
           </div>
         )}
       </div>
+
+      {/* Challenge Modal */}
+      {showChallengeModal && selectedBuddyForChallenge && (
+        <ChallengeModal
+          buddy={selectedBuddyForChallenge}
+          buddies={acceptedBuddies}
+          onClose={() => {
+            setShowChallengeModal(false)
+            setSelectedBuddyForChallenge(null)
+          }}
+          onSuccess={() => {
+            setShowChallengeModal(false)
+            setSelectedBuddyForChallenge(null)
+            queryClient.invalidateQueries({ queryKey: ['activeChallenges'] })
+            setActiveTab('challenges')
+          }}
+        />
+      )}
     </div>
   )
 }
@@ -344,154 +545,225 @@ export default function BuddyPage() {
 function BuddyCard({
   buddy,
   onChat,
-  onRemove,
 }: {
   buddy: any
   onChat: () => void
-  onRemove: () => void
 }) {
-  const [showMenu, setShowMenu] = useState(false)
   const lastWorkout = buddy.last_workout_at
     ? new Date(buddy.last_workout_at)
     : null
   const isRecent = lastWorkout && Date.now() - lastWorkout.getTime() < 7 * 24 * 60 * 60 * 1000
 
   return (
-    <Card>
+    <Card className="cursor-pointer hover:bg-[hsl(var(--surface-soft))] transition-colors" onClick={onChat}>
       <CardContent className="p-4">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <div className="relative">
-              <div className="w-12 h-12 rounded-full bg-[hsl(var(--surface-strong))] flex items-center justify-center overflow-hidden">
-                {buddy.avatar_url ? (
-                  <img
-                    src={buddy.avatar_url}
-                    alt={buddy.display_name}
-                    className="w-full h-full object-cover"
-                  />
-                ) : (
-                  <Users className="w-6 h-6 text-[hsl(var(--muted-foreground))]" />
-                )}
-              </div>
-              {isRecent && (
-                <div className="absolute -bottom-1 -right-1 w-4 h-4 rounded-full bg-green-500 border-2 border-[hsl(var(--card))]" />
+        <div className="flex items-center gap-3">
+          <div className="relative">
+            <div className="w-12 h-12 rounded-full bg-[hsl(var(--surface-strong))] flex items-center justify-center overflow-hidden">
+              {buddy.avatar_url ? (
+                <img
+                  src={buddy.avatar_url}
+                  alt={buddy.display_name}
+                  className="w-full h-full object-cover"
+                />
+              ) : (
+                <Users className="w-6 h-6 text-[hsl(var(--muted-foreground))]" />
               )}
             </div>
-            <div>
+            {isRecent && (
+              <div className="absolute -bottom-1 -right-1 w-4 h-4 rounded-full bg-green-500 border-2 border-[hsl(var(--card))]" />
+            )}
+          </div>
+          <div className="flex-1">
+            <div className="flex items-center gap-1.5">
               <p className="font-semibold">{buddy.display_name}</p>
-              <div className="flex items-center gap-2 text-xs text-[hsl(var(--muted-foreground))]">
-                {buddy.friend_streak > 0 && (
-                  <span className="flex items-center gap-1 text-orange-500">
-                    <Flame className="w-3 h-3" />
-                    {buddy.friend_streak}W Streak
-                  </span>
-                )}
-                <span>
-                  {lastWorkout
-                    ? `Zuletzt: ${formatTimeAgo(lastWorkout)}`
-                    : 'Noch kein Training'}
-                </span>
-              </div>
-            </div>
-          </div>
-
-          <div className="flex items-center gap-1">
-            <Button variant="ghost" size="icon" className="h-9 w-9" onClick={onChat}>
-              <MessageCircle className="w-4 h-4" />
-            </Button>
-            <div className="relative">
-              <Button
-                variant="ghost"
-                size="icon"
-                className="h-9 w-9"
-                onClick={() => setShowMenu(!showMenu)}
-              >
-                <MoreVertical className="w-4 h-4" />
-              </Button>
-              {showMenu && (
-                <div className="absolute right-0 top-full mt-1 py-1 w-40 rounded-lg bg-[hsl(var(--popover))] border border-[hsl(var(--border))] shadow-lg z-10">
-                  <button
-                    className="w-full px-3 py-2 text-left text-sm text-red-500 hover:bg-[hsl(var(--surface-soft))] flex items-center gap-2"
-                    onClick={() => {
-                      setShowMenu(false)
-                      onRemove()
-                    }}
-                  >
-                    <Trash2 className="w-4 h-4" />
-                    Entfernen
-                  </button>
-                </div>
+              {buddy.fitness_goal && (
+                <span className="text-sm">{GOAL_EMOJIS[buddy.fitness_goal] || '❤️'}</span>
               )}
             </div>
+            <div className="flex items-center gap-2 text-xs text-[hsl(var(--muted-foreground))]">
+              {buddy.friend_streak > 0 && (
+                <span className="flex items-center gap-1 text-orange-500">
+                  <Flame className="w-3 h-3" />
+                  {buddy.friend_streak}W
+                </span>
+              )}
+              <span>
+                {lastWorkout
+                  ? `${formatTimeAgo(lastWorkout)}`
+                  : 'Noch kein Training'}
+              </span>
+            </div>
           </div>
+          <MessageCircle className="w-5 h-5 text-[hsl(var(--muted-foreground))]" />
         </div>
       </CardContent>
     </Card>
   )
 }
 
-function ActivityCard({
-  item,
-  onCongrats,
-}: {
-  item: any
-  onCongrats: (emoji: string) => void
-}) {
-  const congrats_emojis = ['🎉', '💪', '🔥', '👏', '⭐']
+function LeaderboardRow({ entry, isCurrentUser }: { entry: LeaderboardUser; isCurrentUser: boolean }) {
+  const getRankIcon = (rank: number) => {
+    if (rank === 1) return '🥇'
+    if (rank === 2) return '🥈'
+    if (rank === 3) return '🥉'
+    return `#${rank}`
+  }
 
   return (
-    <Card>
-      <CardContent className="p-4">
-        <div className="flex items-start gap-3">
-          <div className="w-10 h-10 rounded-full bg-[hsl(var(--surface-strong))] flex items-center justify-center overflow-hidden flex-shrink-0">
-            {item.avatar_url ? (
-              <img
-                src={item.avatar_url}
-                alt={item.display_name}
-                className="w-full h-full object-cover"
-              />
-            ) : (
-              <Users className="w-5 h-5 text-[hsl(var(--muted-foreground))]" />
+    <Card className={cn(isCurrentUser && 'ring-2 ring-[hsl(var(--primary))]')}>
+      <CardContent className="p-3 flex items-center gap-3">
+        <div className="w-8 text-center font-bold text-sm">
+          {getRankIcon(entry.rank)}
+        </div>
+        <div className="w-10 h-10 rounded-full bg-[hsl(var(--surface-strong))] flex items-center justify-center overflow-hidden flex-shrink-0">
+          {entry.avatar_url ? (
+            <img
+              src={entry.avatar_url}
+              alt={entry.display_name}
+              className="w-full h-full object-cover"
+            />
+          ) : (
+            <Users className="w-5 h-5 text-[hsl(var(--muted-foreground))]" />
+          )}
+        </div>
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center gap-1.5">
+            <p className={cn('font-medium truncate', isCurrentUser && 'text-[hsl(var(--primary))]')}>
+              {entry.display_name}
+            </p>
+            {entry.fitness_goal && (
+              <span className="text-sm flex-shrink-0">{GOAL_EMOJIS[entry.fitness_goal] || '❤️'}</span>
+            )}
+            {entry.is_buddy && !isCurrentUser && (
+              <span className="text-xs px-1.5 py-0.5 rounded bg-blue-500/20 text-blue-400">Buddy</span>
             )}
           </div>
-          <div className="flex-1 min-w-0">
-            <p className="font-semibold">{item.display_name}</p>
-            <p className="text-sm">{item.title_de}</p>
-            {item.description_de && (
-              <p className="text-xs text-[hsl(var(--muted-foreground))] mt-1">
-                {item.description_de}
-              </p>
+          <div className="flex items-center gap-2 text-xs text-[hsl(var(--muted-foreground))]">
+            <span>Lv.{entry.current_level}</span>
+            {entry.current_streak > 0 && (
+              <span className="flex items-center gap-0.5 text-orange-500">
+                <Flame className="w-3 h-3" />
+                {entry.current_streak}
+              </span>
             )}
-            <p className="text-xs text-[hsl(var(--muted-foreground))] mt-2">
-              {formatTimeAgo(new Date(item.created_at))}
-            </p>
+          </div>
+        </div>
+        <div className="text-right">
+          <p className="font-bold text-sm">{entry.weekly_volume_kg.toLocaleString()} kg</p>
+          <p className="text-xs text-[hsl(var(--muted-foreground))]">
+            {entry.weekly_workout_count} Training{entry.weekly_workout_count !== 1 ? 's' : ''}
+          </p>
+        </div>
+      </CardContent>
+    </Card>
+  )
+}
+
+function ChallengeCard({
+  challenge,
+  currentUserId,
+  onAccept,
+  onDecline,
+  isPending,
+  isSent,
+}: {
+  challenge: Challenge
+  currentUserId?: string
+  onAccept?: () => void
+  onDecline?: () => void
+  isPending?: boolean
+  isSent?: boolean
+}) {
+  const isChallenger = challenge.challenger_id === currentUserId
+  const opponent = isChallenger 
+    ? { name: challenge.opponent_name, avatar: challenge.opponent_avatar, goal: challenge.opponent_goal }
+    : { name: challenge.challenger_name, avatar: challenge.challenger_avatar, goal: challenge.challenger_goal }
+  
+  const myProgress = isChallenger ? challenge.challenger_progress : challenge.opponent_progress
+  const theirProgress = isChallenger ? challenge.opponent_progress : challenge.challenger_progress
+  
+  const endsAt = new Date(challenge.ends_at)
+  const timeLeft = endsAt.getTime() - Date.now()
+  const hoursLeft = Math.max(0, Math.floor(timeLeft / (1000 * 60 * 60)))
+  const daysLeft = Math.floor(hoursLeft / 24)
+
+  return (
+    <Card className="mb-2">
+      <CardContent className="p-4">
+        <div className="flex items-center justify-between mb-3">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-full bg-[hsl(var(--surface-strong))] flex items-center justify-center overflow-hidden">
+              {opponent.avatar ? (
+                <img src={opponent.avatar} alt={opponent.name} className="w-full h-full object-cover" />
+              ) : (
+                <Users className="w-5 h-5 text-[hsl(var(--muted-foreground))]" />
+              )}
+            </div>
+            <div>
+              <div className="flex items-center gap-1.5">
+                <p className="font-semibold">{opponent.name}</p>
+                {opponent.goal && <span>{GOAL_EMOJIS[opponent.goal] || '❤️'}</span>}
+              </div>
+              <p className="text-xs text-[hsl(var(--muted-foreground))]">
+                {challenge.challenge_type_name}
+              </p>
+            </div>
+          </div>
+          <div className="text-right">
+            <div className="flex items-center gap-1 text-xs text-[hsl(var(--muted-foreground))]">
+              <Timer className="w-3 h-3" />
+              {daysLeft > 0 ? `${daysLeft}d ${hoursLeft % 24}h` : `${hoursLeft}h`}
+            </div>
+            {challenge.xp_reward > 0 && (
+              <div className="flex items-center gap-1 text-xs text-[hsl(var(--primary))]">
+                <Zap className="w-3 h-3" />
+                +{challenge.xp_reward} XP
+              </div>
+            )}
           </div>
         </div>
 
-        {/* Congrats */}
-        <div className="mt-3 pt-3 border-t border-[hsl(var(--border))] flex items-center justify-between">
-          <div className="flex items-center gap-1">
-            {congrats_emojis.map((emoji) => (
-              <button
-                key={emoji}
-                onClick={() => onCongrats(emoji)}
-                className={cn(
-                  'w-8 h-8 rounded-full flex items-center justify-center text-lg transition-all',
-                  item.has_congrats
-                    ? 'bg-[hsl(var(--primary))]/20'
-                    : 'hover:bg-[hsl(var(--surface-soft))]'
-                )}
-              >
-                {emoji}
-              </button>
-            ))}
+        {/* Progress (only for active) */}
+        {challenge.status === 'active' && (
+          <div className="space-y-2">
+            <div className="flex justify-between text-sm">
+              <span>Du: {myProgress}</span>
+              <span>{opponent.name}: {theirProgress}</span>
+            </div>
+            <div className="h-2 rounded-full bg-[hsl(var(--surface-soft))] overflow-hidden flex">
+              <div 
+                className="h-full bg-[hsl(var(--primary))]" 
+                style={{ width: `${Math.min(100, (myProgress / (myProgress + theirProgress || 1)) * 100)}%` }}
+              />
+              <div 
+                className="h-full bg-red-500" 
+                style={{ width: `${Math.min(100, (theirProgress / (myProgress + theirProgress || 1)) * 100)}%` }}
+              />
+            </div>
           </div>
-          {item.congrats_count > 0 && (
-            <span className="text-xs text-[hsl(var(--muted-foreground))]">
-              {item.congrats_count} Gratulationen
-            </span>
-          )}
-        </div>
+        )}
+
+        {/* Actions for pending */}
+        {isPending && onAccept && onDecline && (
+          <div className="flex gap-2 mt-3">
+            <Button className="flex-1" onClick={onAccept}>
+              <Check className="w-4 h-4 mr-1" />
+              Annehmen
+            </Button>
+            <Button variant="secondary" onClick={onDecline}>
+              <X className="w-4 h-4" />
+            </Button>
+          </div>
+        )}
+
+        {/* Sent indicator */}
+        {isSent && (
+          <div className="flex items-center gap-2 mt-2 text-xs text-[hsl(var(--muted-foreground))]">
+            <Clock className="w-3 h-3" />
+            Warte auf Antwort...
+          </div>
+        )}
       </CardContent>
     </Card>
   )

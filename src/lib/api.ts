@@ -138,6 +138,13 @@ class ApiClient {
     return this.request<any>(`/api/exercises/${id}`)
   }
 
+  async getExerciseLastWorkout(exerciseId: number) {
+    return this.request<{
+      lastWorkoutDate: string | null
+      sets: Record<number, { weight: number; reps: number; isWarmup: boolean }>
+    }>(`/api/exercises/${exerciseId}/last-workout`)
+  }
+
   // =====================================================
   // TRAINING PLANS
   // =====================================================
@@ -438,6 +445,190 @@ class ApiClient {
       streak: number
     }>('/api/stats/weekly')
   }
+
+  // =====================================================
+  // LEADERBOARD & RANKINGS
+  // =====================================================
+
+  async getWeeklyLeaderboard() {
+    return this.request<{
+      leaderboard: LeaderboardUser[]
+      currentUserRank: number
+      league: LeagueTier
+      level: UserLevel
+      nextLevel: UserLevel | null
+      totalParticipants: number
+    }>('/api/leaderboard/weekly')
+  }
+
+  async getLeagues() {
+    return this.request<(LeagueTier & { user_count: number; fake_user_count: number })[]>('/api/leagues')
+  }
+
+  async getLevels() {
+    return this.request<UserLevel[]>('/api/levels')
+  }
+
+  async getFitnessGoals() {
+    return this.request<FitnessGoal[]>('/api/fitness-goals')
+  }
+
+  async getUserLevel() {
+    return this.request<{
+      xp_total: number
+      current_level: number
+      league_id: number
+      league_points: number
+      level_name: string
+      level_icon: string
+      level_color: string
+      current_level_xp: number
+      next_level_xp: number | null
+      league_code: string
+      league_name: string
+      league_icon: string
+      league_color: string
+      progress_percent: number
+      xp_to_next: number
+    }>('/api/user/level')
+  }
+
+  // =====================================================
+  // CHALLENGES
+  // =====================================================
+
+  async getChallengeTypes() {
+    return this.request<ChallengeType[]>('/api/challenges/types')
+  }
+
+  async getActiveChallenges() {
+    return this.request<Challenge[]>('/api/challenges')
+  }
+
+  async getChallengeHistory(limit = 20) {
+    return this.request<Challenge[]>(`/api/challenges/history?limit=${limit}`)
+  }
+
+  async createChallenge(data: {
+    opponentId: string
+    challengeTypeId: number
+    exerciseId?: number
+    targetValue?: number
+    wagerCoins?: number
+    endsAt?: string
+    durationPreset?: '1h' | '1d' | 'week' | 'custom'
+  }) {
+    return this.request<Challenge>('/api/challenges', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    })
+  }
+
+  async acceptChallenge(challengeId: number) {
+    return this.request<Challenge>(`/api/challenges/${challengeId}/accept`, {
+      method: 'PATCH',
+    })
+  }
+
+  async declineChallenge(challengeId: number) {
+    return this.request<Challenge>(`/api/challenges/${challengeId}/decline`, {
+      method: 'PATCH',
+    })
+  }
+
+  async cancelChallenge(challengeId: number) {
+    return this.request<Challenge>(`/api/challenges/${challengeId}/cancel`, {
+      method: 'PATCH',
+    })
+  }
+}
+
+// Types for leaderboard and challenges
+export interface LeaderboardUser {
+  id: string
+  display_name: string
+  avatar_url: string | null
+  fitness_goal: string | null
+  current_streak: number
+  xp_total: number
+  current_level: number
+  league_id: number
+  weekly_volume_kg: number
+  weekly_workout_count: number
+  is_fake: boolean
+  is_buddy: boolean
+  rank: number
+}
+
+export interface LeagueTier {
+  id: number
+  code: string
+  name_de: string
+  name_en: string
+  tier_order: number
+  icon_name: string
+  color_hex: string
+  min_points: number
+  promotion_percent: number
+  demotion_percent: number
+}
+
+export interface UserLevel {
+  level: number
+  name_de: string
+  name_en: string
+  xp_required: number
+  icon_name: string
+  color_hex: string
+}
+
+export interface FitnessGoal {
+  id: number
+  code: string
+  name_de: string
+  name_en: string
+  emoji: string
+}
+
+export interface ChallengeType {
+  id: number
+  code: string
+  name_de: string
+  name_en: string
+  description_de: string
+  icon_name: string
+  metric: string
+}
+
+export interface Challenge {
+  id: number
+  friendship_id: number
+  challenge_type_id: number
+  exercise_id: number | null
+  challenger_id: string
+  opponent_id: string
+  status: 'pending' | 'active' | 'completed' | 'cancelled' | 'declined'
+  target_value: number | null
+  challenger_progress: number
+  opponent_progress: number
+  wager_coins: number
+  xp_reward: number
+  winner_id: string | null
+  starts_at: string | null
+  ends_at: string
+  accepted_at: string | null
+  created_at: string
+  challenge_type_code: string
+  challenge_type_name: string
+  challenge_type_icon: string
+  metric: string
+  challenger_name: string
+  challenger_avatar: string | null
+  challenger_goal: string | null
+  opponent_name: string
+  opponent_avatar: string | null
+  opponent_goal: string | null
+  exercise_name: string | null
 }
 
 export const api = new ApiClient()

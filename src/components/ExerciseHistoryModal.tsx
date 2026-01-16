@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { X, Trash2, Edit3, Save, Calendar, Weight, Repeat } from 'lucide-react'
+import { X, Trash2, Edit3, Save, Calendar, Weight, Repeat, ChevronDown, ChevronUp } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
@@ -38,6 +38,7 @@ export function ExerciseHistoryModal({
   const [editingId, setEditingId] = useState<number | null>(null)
   const [editWeight, setEditWeight] = useState('')
   const [editReps, setEditReps] = useState('')
+  const [showAllHistory, setShowAllHistory] = useState(false)
 
   // Group history by date
   const groupedHistory = history.reduce((acc, set) => {
@@ -52,6 +53,10 @@ export function ExerciseHistoryModal({
     acc[date].push(set)
     return acc
   }, {} as Record<string, ExerciseSet[]>)
+
+  // Nur letztes Training anzeigen wenn nicht "mehr anzeigen" aktiv
+  const historyEntries = Object.entries(groupedHistory)
+  const visibleHistory = showAllHistory ? historyEntries : historyEntries.slice(0, 1)
 
   const deleteSetMutation = useMutation({
     mutationFn: (setId: number) => api.deleteWorkoutSet(setId),
@@ -135,7 +140,7 @@ export function ExerciseHistoryModal({
             </div>
           ) : (
             <div className="space-y-6">
-              {Object.entries(groupedHistory).map(([date, sets]) => (
+              {visibleHistory.map(([date, sets]) => (
                 <div key={date}>
                   {/* Date Header */}
                   <div className="flex items-center gap-2 mb-3">
@@ -236,6 +241,27 @@ export function ExerciseHistoryModal({
                   </div>
                 </div>
               ))}
+              
+              {/* "Mehr anzeigen" Button wenn mehr als 1 Training vorhanden */}
+              {historyEntries.length > 1 && (
+                <Button
+                  variant="ghost"
+                  className="w-full"
+                  onClick={() => setShowAllHistory(!showAllHistory)}
+                >
+                  {showAllHistory ? (
+                    <>
+                      <ChevronUp className="w-4 h-4 mr-2" />
+                      Weniger anzeigen
+                    </>
+                  ) : (
+                    <>
+                      <ChevronDown className="w-4 h-4 mr-2" />
+                      {historyEntries.length - 1} weitere Trainings anzeigen
+                    </>
+                  )}
+                </Button>
+              )}
             </div>
           )}
         </div>

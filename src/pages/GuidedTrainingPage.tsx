@@ -19,6 +19,7 @@ import { ConfettiCelebration } from '@/components/ConfettiCelebration'
 // cn import removed - not used
 import { useAuth } from '@/contexts/AuthContext'
 import { supabase } from '@/lib/supabase'
+import { api } from '@/lib/api'
 import type { TrainingPlanDay, TrainingPlanExercise } from '@/types/database'
 
 interface ExerciseWithMachine extends TrainingPlanExercise {
@@ -54,6 +55,7 @@ export default function GuidedTrainingPage() {
   const [showSummary, setShowSummary] = useState(false)
   const [showConfetti, setShowConfetti] = useState(false)
   const [showMenu, setShowMenu] = useState(false)
+  const [currentSetNumber, setCurrentSetNumber] = useState(1)
 
   // Fetch available days if no dayId provided
   const { data: days, isLoading: daysLoading } = useQuery({
@@ -108,6 +110,20 @@ export default function GuidedTrainingPage() {
     enabled: !!dayId,
   })
 
+  const currentExercise = exercises?.[currentExerciseIndex]
+
+  // Letzte Workout-Daten für aktuelle Übung holen (für Placeholder)
+  const { data: lastWorkoutData } = useQuery({
+    queryKey: ['exerciseLastWorkout', currentExercise?.exercise_id],
+    queryFn: () => api.getExerciseLastWorkout(currentExercise!.exercise_id!),
+    enabled: !!currentExercise?.exercise_id && isTraining,
+  })
+
+  // Placeholder-Werte basierend auf aktuellem Satz
+  const lastSetData = lastWorkoutData?.sets?.[currentSetNumber]
+  const weightPlaceholder = lastSetData ? `${lastSetData.weight}` : '0'
+  const repsPlaceholder = lastSetData ? `${lastSetData.reps}` : '0'
+
   // Timer effect
   useEffect(() => {
     let interval: ReturnType<typeof setInterval> | null = null
@@ -146,8 +162,6 @@ export default function GuidedTrainingPage() {
     return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`
   }
 
-  const currentExercise = exercises?.[currentExerciseIndex]
-
   const handleSaveAndNext = useCallback(async () => {
     if (!currentExercise || !weight || !reps) return
 
@@ -166,11 +180,15 @@ export default function GuidedTrainingPage() {
     // Add to logs
     setWorkoutLogs((prev) => [...prev, log])
 
+    // Nächsten Satz vorbereiten oder zur nächsten Übung
+    setCurrentSetNumber((prev) => prev + 1)
+
     // Move to next exercise or finish
     if (currentExerciseIndex < (exercises?.length || 0) - 1) {
       setCurrentExerciseIndex((prev) => prev + 1)
       setWeight('')
       setReps('')
+      setCurrentSetNumber(1) // Reset set counter für neue Übung
     } else {
       // Training complete
       setShowConfetti(true)
@@ -182,6 +200,8 @@ export default function GuidedTrainingPage() {
     if (currentExerciseIndex < (exercises?.length || 0) - 1) {
       setCurrentExerciseIndex((prev) => prev + 1)
       setWeight('')
+      setReps('')
+      setCurrentSetNumber(1) // Reset set counter
       setReps('')
     } else {
       setShowSummary(true)
@@ -451,8 +471,11 @@ export default function GuidedTrainingPage() {
             <h2 className="text-2xl font-bold mb-2">
               {currentExercise.machine?.name || currentExercise.exercise_name || 'Übung'}
             </h2>
+            <p className="text-sm text-[hsl(var(--primary))]">
+              Satz {currentSetNumber}
+            </p>
             {currentExercise.notes && (
-              <p className="text-[hsl(var(--muted-foreground))]">
+              <p className="text-[hsl(var(--muted-foreground))] mt-1">
                 {currentExercise.notes}
               </p>
             )}
@@ -470,10 +493,10 @@ export default function GuidedTrainingPage() {
           </label>
           <Input
             type="number"
-            placeholder="0"
+            placeholder={weightPlaceholder}
             value={weight}
             onChange={(e) => setWeight(e.target.value)}
-            className="text-2xl font-bold h-16 text-center"
+            className="text-2xl font-bold h-16 text-center placeholder:text-blue-400/60"
           />
         </div>
         <div>
@@ -482,10 +505,10 @@ export default function GuidedTrainingPage() {
           </label>
           <Input
             type="number"
-            placeholder="0"
+            placeholder={repsPlaceholder}
             value={reps}
             onChange={(e) => setReps(e.target.value)}
-            className="text-2xl font-bold h-16 text-center"
+            className="text-2xl font-bold h-16 text-center placeholder:text-blue-400/60"
           />
         </div>
       </div>

@@ -28,6 +28,7 @@ export default function AddWorkoutPage() {
   const [reps, setReps] = useState('')
   const [notes, setNotes] = useState('')
   const [showSuccess, setShowSuccess] = useState(false)
+  const [currentSetNumber, setCurrentSetNumber] = useState(1)
 
   // Fetch exercises from API
   const { data: exercises = [], isLoading } = useQuery({
@@ -35,10 +36,23 @@ export default function AddWorkoutPage() {
     queryFn: () => api.getExercises({ search: searchQuery, limit: 20 }),
   })
 
+  // Letzte Workout-Daten für gewählte Übung holen (für Placeholder)
+  const { data: lastWorkoutData } = useQuery({
+    queryKey: ['exerciseLastWorkout', selectedExercise?.id],
+    queryFn: () => api.getExerciseLastWorkout(selectedExercise!.id),
+    enabled: !!selectedExercise?.id,
+  })
+
+  // Placeholder-Werte basierend auf aktuellem Satz
+  const lastSetData = lastWorkoutData?.sets?.[currentSetNumber]
+  const weightPlaceholder = lastSetData ? `${lastSetData.weight}` : '0'
+  const repsPlaceholder = lastSetData ? `${lastSetData.reps}` : '0'
+
   // Select exercise handler
   const handleSelectExercise = (exercise: Exercise) => {
     setSelectedExercise(exercise)
     setSearchQuery('')
+    setCurrentSetNumber(1)
   }
 
   // Save workout - for now just show success
@@ -187,14 +201,14 @@ export default function AddWorkoutPage() {
           <div className="space-y-4 mb-6">
             <div>
               <label className="text-sm text-[hsl(var(--muted-foreground))] mb-2 block">
-                Gewicht (kg)
+                Gewicht (kg) - Satz {currentSetNumber}
               </label>
               <Input
                 type="number"
-                placeholder="0"
+                placeholder={weightPlaceholder}
                 value={weight}
                 onChange={(e) => setWeight(e.target.value)}
-                className="text-2xl font-bold h-16 text-center"
+                className="text-2xl font-bold h-16 text-center placeholder:text-blue-400/60"
               />
             </div>
 
@@ -204,10 +218,10 @@ export default function AddWorkoutPage() {
               </label>
               <Input
                 type="number"
-                placeholder="0"
+                placeholder={repsPlaceholder}
                 value={reps}
                 onChange={(e) => setReps(e.target.value)}
-                className="text-2xl font-bold h-16 text-center"
+                className="text-2xl font-bold h-16 text-center placeholder:text-blue-400/60"
               />
             </div>
 
