@@ -12,6 +12,8 @@ import {
   Clock,
   MoreVertical,
   Trash2,
+  Bell,
+  Trophy,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
@@ -72,9 +74,10 @@ export default function BuddyPage() {
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['buddies'] }),
   })
 
-  const sendReminderMutation = useMutation({
-    mutationFn: (friendshipId: number) => api.sendBuddyReminder(friendshipId),
-  })
+  // TODO: implement usage of this const
+  // const sendReminderMutation = useMutation({
+  //   mutationFn: (friendshipId: number) => api.sendBuddyReminder(friendshipId),
+  // })
 
   const sendCongratsMutation = useMutation({
     mutationFn: ({ itemId, emoji }: { itemId: number; emoji: string }) =>
