@@ -1,0 +1,33 @@
+name = "sculpt-native"
+compatibility_date = "2026-01-18"
+account_id = "7a23cded2cf8c324b4f121f62b7e2f8d"
+
+# =====================================================
+# D1 DATABASE BINDINGS
+# =====================================================
+
+# Default/Development Database
+[[d1_databases]]
+binding = "database"
+database_name = "sculpt-db"
+database_id = "cc89a2b0-17f0-4fe4-9c90-c74076226dd8"
+
+# =====================================================
+# ENVIRONMENT VARIABLES
+# =====================================================
+
+[vars]
+JWT_SECRET = "sculpt-dev-secret-2026"
+
+# =====================================================
+# PRODUCTION ENVIRONMENT
+# =====================================================
+
+[env.production]
+[[env.production.d1_databases]]
+binding = "database"
+database_name = "sculpt-db"
+database_id = "b84bfe73-0ba1-4f8a-8a7d-69468c4f3d49"
+
+[env.production.vars]
+JWT_SECRET = "sculpt-prod-secret-change-me"
