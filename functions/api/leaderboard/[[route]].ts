@@ -72,12 +72,43 @@ async function handleGetLeaderboard(ctx: RequestContext): Promise<Response> {
       isCurrentUser: row.id === userId,
     }))
 
-    return jsonResponse(leaderboard)
+    // Find current user's rank
+    const currentUserEntry = leaderboard.find(entry => (entry as any).id === userId)
+    const currentUserRank = currentUserEntry?.rank || 0
+
+    // Get user's league and level info
+    const userInfo = await env.database.prepare(`
+      SELECT u.league_id, lt.*, lv.level_number, lv.title_de, lv.min_xp, lv.max_xp
+      FROM app_user u
+      LEFT JOIN league_tier lt ON u.league_id = lt.id
+      LEFT JOIN user_level lv ON u.current_level = lv.level_number
+      WHERE u.id = ?
+    `).bind(userId).first<Record<string, unknown>>()
+
+    return jsonResponse({
+      leaderboard,
+      currentUserRank,
+      totalParticipants: leaderboard.length,
+      league: userInfo?.league_id ? {
+        id: userInfo.league_id,
+        code: userInfo.code,
+        name_de: userInfo.name_de,
+        color_hex: userInfo.color_hex
+      } : null,
+      level: userInfo?.level_number ? {
+        level_number: userInfo.level_number,
+        title_de: userInfo.title_de,
+        min_xp: userInfo.min_xp,
+        max_xp: userInfo.max_xp
+      } : null,
+      nextLevel: null  // TODO: fetch next level if needed
+    })
   } catch (error) {
     console.error('Get leaderboard error:', error)
     return errorResponse('Failed to get leaderboard', 500)
   }
 }
+
 
 // GET /api/leagues - Get all leagues
 async function handleGetLeagues(ctx: RequestContext): Promise<Response> {
