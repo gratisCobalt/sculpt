@@ -699,9 +699,9 @@ function LeaderboardRow({ entry, isCurrentUser }: { entry: LeaderboardUser; isCu
           </div>
         </div>
         <div className="text-right">
-          <p className="font-bold text-sm">{entry.weekly_volume_kg.toLocaleString()} kg</p>
+          <p className="font-bold text-sm">{((entry as any).weekly_volume ?? entry.weekly_volume_kg ?? 0).toLocaleString()} kg</p>
           <p className="text-xs text-[hsl(var(--muted-foreground))]">
-            {entry.weekly_workout_count} Training{entry.weekly_workout_count !== 1 ? 's' : ''}
+            {((entry as any).weekly_workouts ?? entry.weekly_workout_count ?? 0)} Training{(((entry as any).weekly_workouts ?? entry.weekly_workout_count ?? 0)) !== 1 ? 's' : ''}
           </p>
         </div>
       </CardContent>
