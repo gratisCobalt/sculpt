@@ -1,4 +1,6 @@
-const API_BASE = import.meta.env.VITE_API_BASE_URL || 'http://localhost:3000'
+// API Base URL - empty string for relative paths (works with Pages Functions)
+// Set VITE_API_BASE_URL for local dev with separate backend
+const API_BASE = import.meta.env.VITE_API_BASE_URL || ''
 
 class ApiClient {
   private token: string | null = null
@@ -270,7 +272,7 @@ class ApiClient {
   async sendFriendRequest(userId: string) {
     return this.request<any>('/api/buddies/request', {
       method: 'POST',
-      body: JSON.stringify({ userId }),
+      body: JSON.stringify({ user_id: userId }),
     })
   }
 
@@ -298,13 +300,13 @@ class ApiClient {
   // =====================================================
 
   async getNotifications(unreadOnly = false, limit = 50) {
-    return this.request<any[]>(`/api/notifications?unreadOnly=${unreadOnly}&limit=${limit}`)
+    return this.request<any[]>(`/api/notifications?unread=${unreadOnly}&limit=${limit}`)
   }
 
   async markNotificationsRead(notificationIds: number[] | 'all') {
     return this.request<{ success: boolean }>('/api/notifications/read', {
-      method: 'PATCH',
-      body: JSON.stringify({ notificationIds }),
+      method: 'POST',
+      body: JSON.stringify({ notification_ids: notificationIds === 'all' ? undefined : notificationIds }),
     })
   }
 
@@ -395,11 +397,11 @@ class ApiClient {
   // =====================================================
 
   async getShopItems() {
-    return this.request<any[]>('/api/shop/items')
+    return this.request<any[]>('/api/shop')
   }
 
   async getInventory() {
-    return this.request<any[]>('/api/shop/inventory')
+    return this.request<any[]>('/api/inventory')
   }
 
   async purchaseItem(itemId: number, quantity = 1) {
@@ -416,18 +418,17 @@ class ApiClient {
   }
 
   async getLootBoxes() {
-    return this.request<any[]>('/api/loot-boxes')
+    return this.request<any[]>('/api/lootboxes')
   }
 
   async clickLootBox(boxId: number) {
     return this.request<{
-      success: boolean
-      new_rarity_id: number
-      new_rarity_code: string
-      clicks_left: number
-      upgraded: boolean
-      coins_won: number | null
-    }>(`/api/loot-boxes/${boxId}/click`, {
+      opened: boolean
+      clicks_remaining?: number
+      rarity_id: number
+      upgraded?: boolean
+      coins_awarded?: number
+    }>(`/api/lootboxes/${boxId}/click`, {
       method: 'POST',
     })
   }

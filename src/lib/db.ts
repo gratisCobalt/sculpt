@@ -1,15 +1,16 @@
-import pg from 'pg'
-
-const pool = new pg.Pool({
-  connectionString: import.meta.env.VITE_DATABASE_URL || 'postgresql://sculpt:sculpt_dev_2026@localhost:5432/sculpt',
-})
+// Legacy database connection - no longer used
+// Frontend now uses fetch() to call the API endpoints in /functions/api/
+// This file is kept for reference only
 
 export const db = {
-  query: <T = unknown>(text: string, params?: unknown[]): Promise<pg.QueryResult<T>> => {
-    return pool.query(text, params)
+  query: async <T = unknown>(_text: string, _params?: unknown[]): Promise<{ rows: T[] }> => {
+    console.warn('Direct database access is deprecated. Use API endpoints instead.')
+    return { rows: [] }
   },
   
-  getClient: () => pool.connect(),
+  getClient: () => {
+    throw new Error('Direct database access is deprecated. Use API endpoints instead.')
+  },
 }
 
 export default db
