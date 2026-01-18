@@ -171,6 +171,30 @@ async function handleSearchUsers(ctx: RequestContext): Promise<Response> {
   }
 }
 
+// GET /api/users/me/badges - Get user's earned badges
+async function handleGetUserBadges(ctx: RequestContext): Promise<Response> {
+  const { request, env } = ctx
+
+  const userId = await getUserIdFromRequest(request, env)
+  if (!userId) return errorResponse('Unauthorized', 401)
+
+  try {
+    const result = await env.database.prepare(`
+      SELECT ub.earned_at, b.*, br.code as rarity_code, br.name_de as rarity_name, br.color_hex
+      FROM user_badge ub
+      JOIN badge b ON ub.badge_id = b.id
+      JOIN badge_rarity br ON b.rarity_id = br.id
+      WHERE ub.user_id = ?
+      ORDER BY ub.earned_at DESC
+    `).bind(userId).all()
+
+    return jsonResponse(result.results || [])
+  } catch (error) {
+    console.error('Get user badges error:', error)
+    return errorResponse('Failed to get user badges', 500)
+  }
+}
+
 // Main request handler
 export const onRequest: PagesFunction<Env> = async (context) => {
   const { request, env } = context
@@ -198,9 +222,14 @@ export const onRequest: PagesFunction<Env> = async (context) => {
     }
   }
 
+  if (request.method === 'GET' && path === '/me/badges') {
+    return handleGetUserBadges(ctx)
+  }
+
   if (request.method === 'GET' && path === '/search') {
     return handleSearchUsers(ctx)
   }
 
   return errorResponse('Not found', 404)
 }
+

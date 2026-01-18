@@ -215,7 +215,8 @@ export const onRequest: PagesFunction<Env> = async (context) => {
   const ctx: RequestContext = { request, env, url }
 
   if (request.method === 'GET') {
-    if (path === '/api/leaderboard') {
+    // Leaderboard routes
+    if (path === '/api/leaderboard' || path === '/api/leaderboard/weekly') {
       return handleGetLeaderboard(ctx)
     }
     if (path === '/api/leagues') {
@@ -237,3 +238,4 @@ export const onRequest: PagesFunction<Env> = async (context) => {
 
   return errorResponse('Not found', 404)
 }
+
