@@ -1,4 +1,5 @@
-name = "sculpt-native"
+name = "sculpt-self-hosted"
+pages_build_output_dir = "dist"
 compatibility_date = "2026-01-18"
 account_id = "7a23cded2cf8c324b4f121f62b7e2f8d"
 
