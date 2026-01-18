@@ -1,7 +1,6 @@
-name = "sculpt-self-hosted"
-pages_build_output_dir = "dist"
+name = "sculpt-native"
 compatibility_date = "2026-01-18"
-# account_id = "7a23cded2cf8c324b4f121f62b7e2f8d"
+account_id = "7a23cded2cf8c324b4f121f62b7e2f8d"
 
 # =====================================================
 # D1 DATABASE BINDINGS
@@ -18,7 +17,7 @@ database_id = "cc89a2b0-17f0-4fe4-9c90-c74076226dd8"
 # =====================================================
 
 [vars]
-JWT_SECRET = "sculpt-dev-secret-2026"
+# JWT_SECRET is set via .dev.vars for local dev
 
 # =====================================================
 # PRODUCTION ENVIRONMENT
@@ -31,4 +30,4 @@ database_name = "sculpt-db"
 database_id = "b84bfe73-0ba1-4f8a-8a7d-69468c4f3d49"
 
 [env.production.vars]
-JWT_SECRET = "sculpt-prod-secret-change-me"
+# JWT_SECRET is set via 'wrangler pages secret put JWT_SECRET'
