@@ -78,10 +78,10 @@ async function handleGetLeaderboard(ctx: RequestContext): Promise<Response> {
 
     // Get user's league and level info
     const userInfo = await env.database.prepare(`
-      SELECT u.league_id, lt.*, lv.level_number, lv.title_de, lv.min_xp, lv.max_xp
+      SELECT u.league_id, lt.*, lv.level, lv.name_de as level_name, lv.xp_required
       FROM app_user u
       LEFT JOIN league_tier lt ON u.league_id = lt.id
-      LEFT JOIN user_level lv ON u.current_level = lv.level_number
+      LEFT JOIN user_level lv ON u.current_level = lv.level
       WHERE u.id = ?
     `).bind(userId).first<Record<string, unknown>>()
 
@@ -95,11 +95,11 @@ async function handleGetLeaderboard(ctx: RequestContext): Promise<Response> {
         name_de: userInfo.name_de,
         color_hex: userInfo.color_hex
       } : null,
-      level: userInfo?.level_number ? {
-        level_number: userInfo.level_number,
-        title_de: userInfo.title_de,
-        min_xp: userInfo.min_xp,
-        max_xp: userInfo.max_xp
+      level: userInfo?.level ? {
+        level_number: userInfo.level,
+        title_de: userInfo.level_name,
+        min_xp: userInfo.xp_required,
+        max_xp: null
       } : null,
       nextLevel: null  // TODO: fetch next level if needed
     })
