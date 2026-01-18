@@ -22,26 +22,47 @@ async function handleGetLeaderboard(ctx: RequestContext): Promise<Response> {
     const weekStart = startOfWeek()
     const limit = parseInt(url.searchParams.get('limit') || '50')
 
-    // Get real users' weekly stats
+    // Get leaderboard data (Real Users + Fake Users)
     const result = await env.database.prepare(`
-      SELECT 
-        u.id,
-        u.display_name,
-        u.avatar_url,
-        u.current_level,
-        u.league_id,
-        lt.code as league_code,
-        lt.name_de as league_name,
-        lt.color_hex as league_color,
-        COALESCE(SUM(ws.total_volume_kg), 0) as weekly_volume,
-        COUNT(DISTINCT ws.id) as weekly_workouts
-      FROM app_user u
-      LEFT JOIN league_tier lt ON u.league_id = lt.id
-      LEFT JOIN workout_session ws ON u.id = ws.user_id AND ws.started_at >= ?
-      WHERE u.onboarding_completed = 1
-      GROUP BY u.id
+      SELECT * FROM (
+        -- Real Users
+        SELECT 
+          u.id,
+          u.display_name,
+          u.avatar_url,
+          u.current_level,
+          u.league_id,
+          lt.code as league_code,
+          lt.name_de as league_name,
+          lt.color_hex as league_color,
+          COALESCE(SUM(ws.total_volume_kg), 0) as weekly_volume,
+          COUNT(DISTINCT ws.id) as weekly_workouts
+        FROM app_user u
+        LEFT JOIN league_tier lt ON u.league_id = lt.id
+        LEFT JOIN workout_session ws ON u.id = ws.user_id AND ws.started_at >= ?1
+        WHERE u.onboarding_completed = 1
+        GROUP BY u.id
+
+        UNION ALL
+
+        -- Fake Users
+        SELECT 
+          f.id,
+          f.display_name,
+          f.avatar_url,
+          f.current_level,
+          f.league_id,
+          lt.code as league_code,
+          lt.name_de as league_name,
+          lt.color_hex as league_color,
+          f.weekly_volume_kg as weekly_volume,
+          f.weekly_workout_count as weekly_workouts
+        FROM fake_user f
+        LEFT JOIN league_tier lt ON f.league_id = lt.id
+        WHERE f.is_active = 1
+      )
       ORDER BY weekly_volume DESC
-      LIMIT ?
+      LIMIT ?2
     `).bind(weekStart, limit).all()
 
     // Add ranking
