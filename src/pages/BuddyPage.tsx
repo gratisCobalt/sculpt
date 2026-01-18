@@ -25,7 +25,7 @@ import type { LeaderboardUser, Challenge } from '@/lib/api'
 import { useAuth } from '@/contexts/AuthContext'
 import ChallengeModal from '@/components/ChallengeModal'
 
-type TabType = 'buddies' | 'requests' | 'leaderboard' | 'challenges'
+type TabType = 'buddies' | 'rang' | 'challenges'
 
 // Fitness goal emoji mapping
 const GOAL_EMOJIS: Record<string, string> = {
@@ -55,6 +55,7 @@ export default function BuddyPage() {
   const [isSearching, setIsSearching] = useState(false)
   const [showChallengeModal, setShowChallengeModal] = useState(false)
   const [selectedBuddyForChallenge, setSelectedBuddyForChallenge] = useState<any>(null)
+  const [showRequestsSheet, setShowRequestsSheet] = useState(false)
 
   // Fetch buddies
   const { data: buddies = [], isLoading: buddiesLoading } = useQuery({
@@ -67,7 +68,7 @@ export default function BuddyPage() {
   const { data: leaderboardData, isLoading: leaderboardLoading } = useQuery({
     queryKey: ['leaderboard'],
     queryFn: () => api.getWeeklyLeaderboard(),
-    enabled: !!user && activeTab === 'leaderboard',
+    enabled: !!user && activeTab === 'rang',
   })
 
   // Fetch user level info
@@ -145,6 +146,21 @@ export default function BuddyPage() {
                 <span className="text-xs font-medium">Lv.{levelInfo.current_level}</span>
               </div>
             )}
+            {/* Anfragen Button */}
+            <Button
+              variant="ghost"
+              size="icon"
+              className="relative"
+              onClick={() => setShowRequestsSheet(true)}
+            >
+              <Bell className="w-5 h-5" />
+              {pendingRequests.length > 0 && (
+                <span className="absolute -top-1 -right-1 w-5 h-5 rounded-full bg-[hsl(var(--primary))] text-[10px] text-gray-900 font-bold flex items-center justify-center">
+                  {pendingRequests.length}
+                </span>
+              )}
+            </Button>
+            {/* Buddy hinzufügen */}
             <Button
               variant="ghost"
               size="icon"
@@ -224,9 +240,8 @@ export default function BuddyPage() {
         <div className="flex gap-1 p-1 rounded-lg bg-[hsl(var(--surface-soft))]">
           {[
             { id: 'buddies' as const, label: 'Buddies', count: acceptedBuddies.length },
-            { id: 'requests' as const, label: 'Anfragen', count: pendingRequests.length },
-            { id: 'leaderboard' as const, label: '🏆' },
-            { id: 'challenges' as const, label: '⚔️', count: pendingChallenges.length },
+            { id: 'rang' as const, label: 'Rang 🏆' },
+            { id: 'challenges' as const, label: 'Challenges ⚔️', count: pendingChallenges.length },
           ].map((tab) => (
             <button
               key={tab.id}
@@ -261,12 +276,12 @@ export default function BuddyPage() {
                 <BuddyCard
                   key={buddy.friendship_id}
                   buddy={buddy}
-                  onChat={() => navigate(`/buddies/${buddy.id}/chat`, { 
-                    state: { 
-                      buddyName: buddy.display_name, 
+                  onChat={() => navigate(`/buddies/${buddy.id}/chat`, {
+                    state: {
+                      buddyName: buddy.display_name,
                       avatarUrl: buddy.avatar_url,
                       friendshipId: buddy.friendship_id
-                    } 
+                    }
                   })}
                 />
               ))
@@ -311,74 +326,16 @@ export default function BuddyPage() {
           </div>
         )}
 
-        {/* Requests */}
-        {activeTab === 'requests' && (
-          <div className="space-y-3">
-            {pendingRequests.length > 0 ? (
-              pendingRequests.map((request) => (
-                <Card key={request.friendship_id}>
-                  <CardContent className="p-4">
-                    <div className="flex items-center gap-3 mb-3">
-                      <div className="w-12 h-12 rounded-full bg-[hsl(var(--surface-strong))] flex items-center justify-center">
-                        <Users className="w-6 h-6 text-[hsl(var(--muted-foreground))]" />
-                      </div>
-                      <div>
-                        <p className="font-semibold">{request.display_name}</p>
-                        <p className="text-sm text-[hsl(var(--muted-foreground))]">
-                          möchte dein Buddy sein
-                        </p>
-                      </div>
-                    </div>
-                    <div className="flex gap-2">
-                      <Button
-                        className="flex-1"
-                        onClick={() =>
-                          respondRequestMutation.mutate({
-                            friendshipId: request.friendship_id,
-                            action: 'accept',
-                          })
-                        }
-                        disabled={respondRequestMutation.isPending}
-                      >
-                        <Check className="w-4 h-4 mr-2" />
-                        Akzeptieren
-                      </Button>
-                      <Button
-                        variant="secondary"
-                        onClick={() =>
-                          respondRequestMutation.mutate({
-                            friendshipId: request.friendship_id,
-                            action: 'reject',
-                          })
-                        }
-                        disabled={respondRequestMutation.isPending}
-                      >
-                        <X className="w-4 h-4" />
-                      </Button>
-                    </div>
-                  </CardContent>
-                </Card>
-              ))
-            ) : (
-              <EmptyState
-                icon={Bell}
-                title="Keine Anfragen"
-                description="Du hast aktuell keine offenen Freundschaftsanfragen"
-              />
-            )}
-          </div>
-        )}
-
         {/* Leaderboard */}
-        {activeTab === 'leaderboard' && (
+        {activeTab === 'rang' && (
           <div className="space-y-4">
             {/* League Info Card */}
             {leaderboardData?.league && (
               <Card className="overflow-hidden">
-                <div 
+                <div
                   className="p-4"
-                  style={{ 
-                    background: `linear-gradient(135deg, ${leaderboardData.league.color_hex}20, transparent)` 
+                  style={{
+                    background: `linear-gradient(135deg, ${leaderboardData.league.color_hex}20, transparent)`
                   }}
                 >
                   <div className="flex items-center justify-between">
@@ -400,7 +357,7 @@ export default function BuddyPage() {
                       </div>
                     )}
                   </div>
-                  
+
                   {/* XP Progress */}
                   {leaderboardData.nextLevel && (
                     <div className="mt-3">
@@ -409,7 +366,7 @@ export default function BuddyPage() {
                         <span>{leaderboardData.nextLevel.xp_required - (leaderboardData.level?.xp_required || 0)} XP bis Level {leaderboardData.level.level + 1}</span>
                       </div>
                       <div className="h-2 rounded-full bg-[hsl(var(--surface-soft))] overflow-hidden">
-                        <div 
+                        <div
                           className="h-full rounded-full bg-[hsl(var(--primary))] transition-all"
                           style={{ width: `${Math.min(100, ((leaderboardData.level?.xp_required || 0) / leaderboardData.nextLevel.xp_required) * 100)}%` }}
                         />
@@ -426,9 +383,9 @@ export default function BuddyPage() {
             ) : leaderboardData?.leaderboard && leaderboardData.leaderboard.length > 0 ? (
               <div className="space-y-2">
                 {leaderboardData.leaderboard.slice(0, 50).map((entry) => (
-                  <LeaderboardRow 
-                    key={entry.id} 
-                    entry={entry} 
+                  <LeaderboardRow
+                    key={entry.id}
+                    entry={entry}
                     isCurrentUser={entry.id === user?.id}
                   />
                 ))}
@@ -535,6 +492,98 @@ export default function BuddyPage() {
             setActiveTab('challenges')
           }}
         />
+      )}
+
+      {/* Requests Sheet */}
+      {showRequestsSheet && (
+        <div className="fixed inset-0 z-[100] flex items-end justify-center">
+          {/* Backdrop */}
+          <div
+            className="absolute inset-0 bg-black/60 backdrop-blur-sm"
+            onClick={() => setShowRequestsSheet(false)}
+          />
+
+          {/* Sheet */}
+          <div className="relative w-full max-w-lg bg-[hsl(var(--card))] rounded-t-2xl max-h-[70vh] overflow-hidden animate-in slide-in-from-bottom duration-300">
+            {/* Header */}
+            <div className="flex items-center justify-between p-4 border-b border-[hsl(var(--border))]">
+              <div className="flex items-center gap-2">
+                <Bell className="w-5 h-5 text-[hsl(var(--primary))]" />
+                <h2 className="text-lg font-bold">Anfragen</h2>
+                {pendingRequests.length > 0 && (
+                  <span className="px-2 py-0.5 rounded-full bg-[hsl(var(--primary))] text-xs text-gray-900 font-bold">
+                    {pendingRequests.length}
+                  </span>
+                )}
+              </div>
+              <Button variant="ghost" size="icon" onClick={() => setShowRequestsSheet(false)}>
+                <X className="w-5 h-5" />
+              </Button>
+            </div>
+
+            {/* Content */}
+            <div className="p-4 overflow-y-auto max-h-[calc(70vh-80px)]">
+              {pendingRequests.length > 0 ? (
+                <div className="space-y-3">
+                  {pendingRequests.map((request) => (
+                    <Card key={request.friendship_id}>
+                      <CardContent className="p-4">
+                        <div className="flex items-center gap-3 mb-3">
+                          <div className="w-12 h-12 rounded-full bg-[hsl(var(--surface-strong))] flex items-center justify-center">
+                            <Users className="w-6 h-6 text-[hsl(var(--muted-foreground))]" />
+                          </div>
+                          <div>
+                            <p className="font-semibold">{request.display_name}</p>
+                            <p className="text-sm text-[hsl(var(--muted-foreground))]">
+                              möchte dein Buddy sein
+                            </p>
+                          </div>
+                        </div>
+                        <div className="flex gap-2">
+                          <Button
+                            className="flex-1"
+                            onClick={() =>
+                              respondRequestMutation.mutate({
+                                friendshipId: request.friendship_id,
+                                action: 'accept',
+                              })
+                            }
+                            disabled={respondRequestMutation.isPending}
+                          >
+                            <Check className="w-4 h-4 mr-2" />
+                            Akzeptieren
+                          </Button>
+                          <Button
+                            variant="secondary"
+                            onClick={() =>
+                              respondRequestMutation.mutate({
+                                friendshipId: request.friendship_id,
+                                action: 'reject',
+                              })
+                            }
+                            disabled={respondRequestMutation.isPending}
+                          >
+                            <X className="w-4 h-4" />
+                          </Button>
+                        </div>
+                      </CardContent>
+                    </Card>
+                  ))}
+                </div>
+              ) : (
+                <div className="text-center py-12">
+                  <div className="w-16 h-16 rounded-full bg-[hsl(var(--surface-soft))] flex items-center justify-center mx-auto mb-4">
+                    <Bell className="w-8 h-8 text-[hsl(var(--muted-foreground))]" />
+                  </div>
+                  <h3 className="font-semibold mb-1">Keine Anfragen</h3>
+                  <p className="text-sm text-[hsl(var(--muted-foreground))]">
+                    Du hast aktuell keine offenen Freundschaftsanfragen
+                  </p>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
       )}
     </div>
   )
@@ -676,13 +725,13 @@ function ChallengeCard({
   isSent?: boolean
 }) {
   const isChallenger = challenge.challenger_id === currentUserId
-  const opponent = isChallenger 
+  const opponent = isChallenger
     ? { name: challenge.opponent_name, avatar: challenge.opponent_avatar, goal: challenge.opponent_goal }
     : { name: challenge.challenger_name, avatar: challenge.challenger_avatar, goal: challenge.challenger_goal }
-  
+
   const myProgress = isChallenger ? challenge.challenger_progress : challenge.opponent_progress
   const theirProgress = isChallenger ? challenge.opponent_progress : challenge.challenger_progress
-  
+
   const endsAt = new Date(challenge.ends_at)
   const timeLeft = endsAt.getTime() - Date.now()
   const hoursLeft = Math.max(0, Math.floor(timeLeft / (1000 * 60 * 60)))
@@ -732,12 +781,12 @@ function ChallengeCard({
               <span>{opponent.name}: {theirProgress}</span>
             </div>
             <div className="h-2 rounded-full bg-[hsl(var(--surface-soft))] overflow-hidden flex">
-              <div 
-                className="h-full bg-[hsl(var(--primary))]" 
+              <div
+                className="h-full bg-[hsl(var(--primary))]"
                 style={{ width: `${Math.min(100, (myProgress / (myProgress + theirProgress || 1)) * 100)}%` }}
               />
-              <div 
-                className="h-full bg-red-500" 
+              <div
+                className="h-full bg-red-500"
                 style={{ width: `${Math.min(100, (theirProgress / (myProgress + theirProgress || 1)) * 100)}%` }}
               />
             </div>

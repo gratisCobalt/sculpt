@@ -2738,7 +2738,7 @@ app.get('/api/user/level', authMiddleware, async (req, res) => {
       FROM app_user u
       JOIN user_level ul ON ul.level = u.current_level
       LEFT JOIN user_level next_ul ON next_ul.level = u.current_level + 1
-      JOIN league_tier lt ON lt.id = u.league_id
+      LEFT JOIN league_tier lt ON lt.id = u.league_id
       WHERE u.id = $1
     `, [userId])
     

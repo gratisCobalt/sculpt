@@ -61,13 +61,13 @@ export default function ChallengeModal({ buddy, buddies, onClose, onSuccess }: C
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center">
+    <div className="fixed inset-0 z-[100] flex items-end sm:items-center justify-center">
       {/* Backdrop */}
-      <div 
+      <div
         className="absolute inset-0 bg-black/60 backdrop-blur-sm"
         onClick={onClose}
       />
-      
+
       {/* Modal */}
       <div className="relative w-full max-w-lg bg-[hsl(var(--card))] rounded-t-2xl sm:rounded-2xl max-h-[85vh] overflow-hidden animate-in slide-in-from-bottom duration-300">
         {/* Header */}
@@ -98,8 +98,8 @@ export default function ChallengeModal({ buddy, buddies, onClose, onSuccess }: C
                       onClick={() => setSelectedBuddy(b)}
                       className={cn(
                         'flex-shrink-0 flex items-center gap-2 px-3 py-2 rounded-lg border transition-all',
-                        selectedBuddy.id === b.id 
-                          ? 'border-[hsl(var(--primary))] bg-[hsl(var(--primary))]/10' 
+                        selectedBuddy.id === b.id
+                          ? 'border-[hsl(var(--primary))] bg-[hsl(var(--primary))]/10'
                           : 'border-[hsl(var(--border))] hover:border-[hsl(var(--primary))]/50'
                       )}
                     >
@@ -130,14 +130,14 @@ export default function ChallengeModal({ buddy, buddies, onClose, onSuccess }: C
                         onClick={() => setSelectedType(type)}
                         className={cn(
                           'w-full flex items-center gap-3 p-3 rounded-lg border text-left transition-all',
-                          selectedType?.id === type.id 
-                            ? 'border-[hsl(var(--primary))] bg-[hsl(var(--primary))]/10' 
+                          selectedType?.id === type.id
+                            ? 'border-[hsl(var(--primary))] bg-[hsl(var(--primary))]/10'
                             : 'border-[hsl(var(--border))] hover:border-[hsl(var(--primary))]/50'
                         )}
                       >
                         <div className={cn(
                           'w-10 h-10 rounded-lg flex items-center justify-center',
-                          selectedType?.id === type.id 
+                          selectedType?.id === type.id
                             ? 'bg-[hsl(var(--primary))] text-gray-900'
                             : 'bg-[hsl(var(--surface-soft))]'
                         )}>
@@ -171,8 +171,8 @@ export default function ChallengeModal({ buddy, buddies, onClose, onSuccess }: C
                       onClick={() => setSelectedDuration(preset.id)}
                       className={cn(
                         'p-3 rounded-lg border text-left transition-all',
-                        selectedDuration === preset.id 
-                          ? 'border-[hsl(var(--primary))] bg-[hsl(var(--primary))]/10' 
+                        selectedDuration === preset.id
+                          ? 'border-[hsl(var(--primary))] bg-[hsl(var(--primary))]/10'
                           : 'border-[hsl(var(--border))] hover:border-[hsl(var(--primary))]/50'
                       )}
                     >
@@ -223,12 +223,12 @@ export default function ChallengeModal({ buddy, buddies, onClose, onSuccess }: C
                       onClick={() => setWagerCoins(amount)}
                       className={cn(
                         'flex-1 py-2 rounded-lg border text-center font-medium transition-all',
-                        wagerCoins === amount 
-                          ? 'border-[hsl(var(--primary))] bg-[hsl(var(--primary))]/10 text-[hsl(var(--primary))]' 
+                        wagerCoins === amount
+                          ? 'border-[hsl(var(--primary))] bg-[hsl(var(--primary))]/10 text-[hsl(var(--primary))]'
                           : 'border-[hsl(var(--border))] hover:border-[hsl(var(--primary))]/50'
                       )}
                     >
-                      {amount === 0 ? 'Kein Einsatz' : `${amount} 🪙`}
+                      {amount === 0 ? 'Kein Einsatz' : <>{amount} <Dumbbell className="w-4 h-4 inline" /></>}
                     </button>
                   ))}
                 </div>
@@ -273,7 +273,7 @@ export default function ChallengeModal({ buddy, buddies, onClose, onSuccess }: C
                   {wagerCoins > 0 && (
                     <div className="flex items-center justify-between">
                       <span className="text-[hsl(var(--muted-foreground))]">Einsatz</span>
-                      <span className="font-medium">{wagerCoins} 🪙</span>
+                      <span className="font-medium flex items-center gap-1">{wagerCoins} <Dumbbell className="w-4 h-4" /></span>
                     </div>
                   )}
                 </CardContent>
@@ -285,8 +285,8 @@ export default function ChallengeModal({ buddy, buddies, onClose, onSuccess }: C
         {/* Footer */}
         <div className="p-4 border-t border-[hsl(var(--border))] flex gap-2">
           {step !== 'type' && (
-            <Button 
-              variant="secondary" 
+            <Button
+              variant="secondary"
               className="flex-1"
               onClick={() => {
                 if (step === 'duration') setStep('type')
@@ -297,7 +297,7 @@ export default function ChallengeModal({ buddy, buddies, onClose, onSuccess }: C
               Zurück
             </Button>
           )}
-          <Button 
+          <Button
             className="flex-1"
             disabled={
               (step === 'type' && !selectedType) ||
@@ -311,10 +311,10 @@ export default function ChallengeModal({ buddy, buddies, onClose, onSuccess }: C
               else if (step === 'confirm') createChallengeMutation.mutate()
             }}
           >
-            {createChallengeMutation.isPending 
-              ? 'Wird gesendet...' 
-              : step === 'confirm' 
-                ? 'Challenge senden' 
+            {createChallengeMutation.isPending
+              ? 'Wird gesendet...'
+              : step === 'confirm'
+                ? 'Challenge senden'
                 : 'Weiter'
             }
           </Button>
