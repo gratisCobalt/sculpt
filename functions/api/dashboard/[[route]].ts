@@ -106,7 +106,8 @@ async function handleGetExerciseProgress(ctx: RequestContext): Promise<Response>
         ws.set_number,
         ws.is_warmup,
         ws.is_pr,
-        wse.started_at as date
+        wse.started_at as date,
+        (SELECT LOWER(bp.code) FROM exercise_body_part ebp JOIN body_part bp ON ebp.body_part_id = bp.id WHERE ebp.exercise_id = e.id LIMIT 1) as primary_category
       FROM workout_set ws
       JOIN workout_session wse ON ws.workout_session_id = wse.id
       JOIN exercise e ON ws.exercise_id = e.id
@@ -129,7 +130,7 @@ async function handleGetExerciseProgress(ctx: RequestContext): Promise<Response>
 
     // Group by exercise
     const exerciseMap = new Map<number, {
-      exercise: { id: number; name: string; name_de: string | null; image_url: string | null }
+      exercise: { id: number; name: string; name_de: string | null; image_url: string | null; primary_category: string }
       history: { date: string; weight: number; reps: number; volume: number }[]
       allSets: unknown[]
       latestWeight: number
@@ -147,6 +148,7 @@ async function handleGetExerciseProgress(ctx: RequestContext): Promise<Response>
             name: row.name as string,
             name_de: row.name_de as string | null,
             image_url: row.image_url as string | null,
+            primary_category: (row.primary_category as string) || 'other',
           },
           history: [],
           allSets: [],
