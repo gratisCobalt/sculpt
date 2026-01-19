@@ -54,7 +54,7 @@ export default function LoginPage() {
         </Button>
 
         <p className="text-xs text-center text-[hsl(var(--muted-foreground))]">
-          Lokale PostgreSQL Entwicklungsumgebung
+          Cloudflare D1 Entwicklungsumgebung
         </p>
       </div>
     </div>

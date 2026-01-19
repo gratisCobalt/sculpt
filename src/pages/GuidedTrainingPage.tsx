@@ -16,9 +16,7 @@ import { Card, CardContent } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { SkeletonList, Loader } from '@/components/ui/loader'
 import { ConfettiCelebration } from '@/components/ConfettiCelebration'
-// cn import removed - not used
 import { useAuth } from '@/contexts/AuthContext'
-import { supabase } from '@/lib/supabase'
 import { api } from '@/lib/api'
 import type { TrainingPlanDay, TrainingPlanExercise } from '@/types/database'
 
@@ -57,55 +55,34 @@ export default function GuidedTrainingPage() {
   const [showMenu, setShowMenu] = useState(false)
   const [currentSetNumber, setCurrentSetNumber] = useState(1)
 
-  // Fetch available days if no dayId provided
+  // Fetch available days if no dayId provided - use API
   const { data: days, isLoading: daysLoading } = useQuery({
     queryKey: ['guidedTrainingDays', user?.id],
     queryFn: async () => {
-      if (!user?.id || !supabase) return []
-
-      // Get user's active training plan
-      const { data: plans } = await supabase
-        .from('training_plan_relation')
-        .select('id')
-        .eq('created_by_id', user.id)
-        .eq('is_active', true)
-        .limit(1)
-
-      if (!plans || plans.length === 0 || !supabase) return []
-
-      const { data, error } = await supabase
-        .from('training_plan_day')
-        .select('*')
-        .eq('training_plan_id', plans[0].id)
-        .eq('is_active', true)
-        .order('day_number', { ascending: true })
-
-      if (error) throw error
-      return data as TrainingPlanDay[]
+      if (!user?.id) return []
+      try {
+        const plan = await api.getUserTrainingPlan()
+        if (!plan?.days) return []
+        return plan.days as TrainingPlanDay[]
+      } catch {
+        return []
+      }
     },
     enabled: !!user?.id && !dayId,
   })
 
-  // Fetch exercises for selected day
+  // Fetch exercises for selected day - use API
   const { data: exercises, isLoading: exercisesLoading } = useQuery({
     queryKey: ['guidedExercises', dayId],
     queryFn: async () => {
-      if (!dayId || !supabase) return []
-
-      const { data, error } = await supabase
-        .from('training_plan_exercise')
-        .select(`
-          *,
-          machine:machine_id (
-            id,
-            name
-          )
-        `)
-        .eq('training_plan_day_id', dayId)
-        .order('sequence', { ascending: true })
-
-      if (error) throw error
-      return data as ExerciseWithMachine[]
+      if (!dayId) return []
+      try {
+        const plan = await api.getUserTrainingPlan()
+        const day = plan?.days?.find((d: TrainingPlanDay) => String(d.id) === dayId)
+        return (day?.exercises || []) as ExerciseWithMachine[]
+      } catch {
+        return []
+      }
     },
     enabled: !!dayId,
   })
@@ -139,20 +116,20 @@ export default function GuidedTrainingPage() {
     }
   }, [isTraining, isPaused])
 
-  // Save workout mutation
+  // Save workout mutation - using API
   const saveWorkoutMutation = useMutation({
     mutationFn: async (log: WorkoutLog) => {
-      if (!user?.id || !log.machineId || !supabase) return
+      if (!user?.id) return
 
-      const { error } = await supabase.from('workout_entry').insert({
-        machine_id: log.machineId,
-        created_by_id: user.id,
-        max_weight: log.weight,
-        reps: log.reps,
-        training_plan_exercise_id: log.exerciseId,
+      // Save via API
+      await api.createWorkout({
+        sets: [{
+          exercise_id: log.exerciseId,
+          set_number: currentSetNumber,
+          weight_kg: log.weight,
+          reps: log.reps,
+        }]
       })
-
-      if (error) throw error
     },
   })
 
