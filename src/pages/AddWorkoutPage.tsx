@@ -1,254 +1,232 @@
-import { useState } from 'react'
+import { useState, useEffect, useRef, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { Search, Check, X } from 'lucide-react'
-import { Button } from '@/components/ui/button'
+import { useInfiniteQuery } from '@tanstack/react-query'
+import { Search, Dumbbell, Loader2 } from 'lucide-react'
 import { Input } from '@/components/ui/input'
 import { Card, CardContent } from '@/components/ui/card'
-import { SkeletonList } from '@/components/ui/loader'
-import { useAuth } from '@/contexts/AuthContext'
+import { cn } from '@/lib/utils'
 import { api } from '@/lib/api'
 
-interface Exercise {
-  id: number
-  name: string
-  description?: string
-  image_url?: string
-  primary_category?: string
+const ITEMS_PER_PAGE = 20
+
+const categories = [
+  { id: 'all', name: 'Alle' },
+  { id: 'chest', name: 'Brust' },
+  { id: 'back', name: 'Rücken' },
+  { id: 'upper_arms', name: 'Arme' },
+  { id: 'shoulders', name: 'Schultern' },
+  { id: 'upper_legs', name: 'Beine' },
+  { id: 'waist', name: 'Bauch' },
+]
+
+// Custom hook for debounced value
+function useDebounce<T>(value: T, delay: number): T {
+  const [debouncedValue, setDebouncedValue] = useState<T>(value)
+
+  useEffect(() => {
+    const timer = setTimeout(() => setDebouncedValue(value), delay)
+    return () => clearTimeout(timer)
+  }, [value, delay])
+
+  return debouncedValue
 }
 
 export default function AddWorkoutPage() {
   const navigate = useNavigate()
-  const queryClient = useQueryClient()
-  const { user } = useAuth()
-
   const [searchQuery, setSearchQuery] = useState('')
-  const [selectedExercise, setSelectedExercise] = useState<Exercise | null>(null)
-  const [weight, setWeight] = useState('')
-  const [reps, setReps] = useState('')
-  const [notes, setNotes] = useState('')
-  const [showSuccess, setShowSuccess] = useState(false)
-  const [currentSetNumber, setCurrentSetNumber] = useState(1)
+  const [selectedCategory, setSelectedCategory] = useState('all')
+  const loadMoreRef = useRef<HTMLDivElement>(null)
 
-  // Fetch exercises from API
-  const { data: exercises = [], isLoading } = useQuery({
-    queryKey: ['exercises', searchQuery],
-    queryFn: () => api.getExercises({ search: searchQuery, limit: 20 }),
-  })
+  const debouncedSearch = useDebounce(searchQuery, 300)
 
-  // Letzte Workout-Daten für gewählte Übung holen (für Placeholder)
-  const { data: lastWorkoutData } = useQuery({
-    queryKey: ['exerciseLastWorkout', selectedExercise?.id],
-    queryFn: () => api.getExerciseLastWorkout(selectedExercise!.id),
-    enabled: !!selectedExercise?.id,
-  })
-
-  // Placeholder-Werte basierend auf aktuellem Satz
-  const lastSetData = lastWorkoutData?.sets?.[currentSetNumber]
-  const weightPlaceholder = lastSetData ? `${lastSetData.weight}` : '0'
-  const repsPlaceholder = lastSetData ? `${lastSetData.reps}` : '0'
-
-  // Select exercise handler
-  const handleSelectExercise = (exercise: Exercise) => {
-    setSelectedExercise(exercise)
-    setSearchQuery('')
-    setCurrentSetNumber(1)
-  }
-
-  // Save workout - for now just show success
-  const saveWorkoutMutation = useMutation({
-    mutationFn: async () => {
-      if (!selectedExercise?.id || !user?.id) throw new Error('Missing data')
-      // TODO: Implement actual save via API
-      return Promise.resolve()
+  // Infinite Query for exercises
+  const {
+    data,
+    fetchNextPage,
+    hasNextPage,
+    isFetchingNextPage,
+    isLoading,
+    isError,
+  } = useInfiniteQuery({
+    queryKey: ['exercises', debouncedSearch, selectedCategory],
+    queryFn: async ({ pageParam = 1 }) => {
+      return api.getExercisesPaginated({
+        search: debouncedSearch || undefined,
+        bodyPart: selectedCategory !== 'all' ? selectedCategory : undefined,
+        page: pageParam,
+        limit: ITEMS_PER_PAGE,
+      })
     },
-    onSuccess: () => {
-      setShowSuccess(true)
-      queryClient.invalidateQueries({ queryKey: ['workoutStats'] })
-      queryClient.invalidateQueries({ queryKey: ['exerciseProgress'] })
-
-      setTimeout(() => {
-        setShowSuccess(false)
-        setSelectedExercise(null)
-        setWeight('')
-        setReps('')
-        setNotes('')
-      }, 1500)
+    getNextPageParam: (lastPage) => {
+      if (lastPage.pagination.page < lastPage.pagination.totalPages) {
+        return lastPage.pagination.page + 1
+      }
+      return undefined
     },
+    initialPageParam: 1,
   })
 
-  if (showSuccess) {
-    return (
-      <div className="min-h-screen flex items-center justify-center px-6 safe-top safe-bottom">
-        <div className="text-center animate-scale-in">
-          <div className="w-20 h-20 rounded-full gradient-primary flex items-center justify-center mx-auto mb-4 gradient-shadow">
-            <Check className="w-10 h-10 text-gray-900" />
-          </div>
-          <h2 className="text-2xl font-bold mb-2">Gespeichert!</h2>
-          <p className="text-[hsl(var(--muted-foreground))]">
-            Workout wurde aufgezeichnet
-          </p>
-        </div>
-      </div>
-    )
+  // Intersection Observer for infinite scroll
+  const handleObserver = useCallback(
+    (entries: IntersectionObserverEntry[]) => {
+      const [entry] = entries
+      if (entry.isIntersecting && hasNextPage && !isFetchingNextPage) {
+        fetchNextPage()
+      }
+    },
+    [fetchNextPage, hasNextPage, isFetchingNextPage]
+  )
+
+  useEffect(() => {
+    const element = loadMoreRef.current
+    if (!element) return
+
+    const observer = new IntersectionObserver(handleObserver, {
+      threshold: 0.1,
+      rootMargin: '100px',
+    })
+
+    observer.observe(element)
+    return () => observer.disconnect()
+  }, [handleObserver])
+
+  // Flatten all pages into single array
+  const exercises = data?.pages.flatMap((page) => page.exercises) ?? []
+  const totalCount = data?.pages[0]?.pagination.total ?? 0
+
+  const handleExerciseClick = (exerciseId: number) => {
+    // Navigate to exercise detail or add to workout
+    navigate(`/guided-training?exerciseId=${exerciseId}`)
   }
 
   return (
-    <div className="min-h-screen px-6 pt-6 pb-24 safe-top">
+    <div className="min-h-screen pb-24 safe-top">
       {/* Header */}
-      <div className="flex items-center justify-between mb-6">
-        <h1 className="text-2xl font-bold">Workout hinzufügen</h1>
-        <Button variant="ghost" size="icon" onClick={() => navigate(-1)}>
-          <X className="w-5 h-5" />
-        </Button>
+      <div className="px-6 pt-6 pb-4">
+        <h1 className="text-2xl font-bold mb-1">Workout hinzufügen</h1>
+        <p className="text-[hsl(var(--muted-foreground))]">
+          Wähle eine Übung aus
+        </p>
       </div>
 
-      {/* Exercise Selection */}
-      {!selectedExercise ? (
-        <>
-          {/* Search */}
-          <div className="relative mb-4">
-            <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-[hsl(var(--muted-foreground))]" />
-            <Input
-              type="text"
-              placeholder="Übung suchen..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="pl-12"
-            />
-          </div>
+      {/* Search Input */}
+      <div className="px-6 mb-4">
+        <div className="relative">
+          <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-[hsl(var(--muted-foreground))]" />
+          <Input
+            type="text"
+            placeholder="Suche nach Übungen..."
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            className="pl-12 h-12 text-base"
+          />
+        </div>
+      </div>
 
-          {/* Exercise List */}
-          {isLoading ? (
-            <SkeletonList count={5} />
-          ) : (
-            <div className="space-y-2">
-              {exercises.map((exercise: Exercise) => (
+      {/* Category Filter Pills */}
+      <div className="px-6 mb-6">
+        <div
+          className="flex gap-2 overflow-x-auto pb-2 -mx-6 px-6 no-scrollbar"
+        >
+          {categories.map((cat) => (
+            <button
+              key={cat.id}
+              onClick={() => setSelectedCategory(cat.id)}
+              className={cn(
+                'px-4 py-2 rounded-full text-sm font-medium whitespace-nowrap transition-all duration-200 flex-shrink-0 active:scale-95',
+                selectedCategory === cat.id
+                  ? 'gradient-primary text-gray-900 shadow-lg'
+                  : 'bg-[hsl(var(--surface-soft))] text-[hsl(var(--muted-foreground))] hover:bg-[hsl(var(--surface-strong))] active:bg-[hsl(var(--surface-strong))]'
+              )}
+            >
+              {cat.name}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {/* Results Count */}
+      {!isLoading && (
+        <div className="px-6 mb-4">
+          <p className="text-sm text-[hsl(var(--muted-foreground))]">
+            {totalCount} {totalCount === 1 ? 'Übung' : 'Übungen'} gefunden
+          </p>
+        </div>
+      )}
+
+      {/* Exercise Grid */}
+      <div className="px-6">
+        {isLoading ? (
+          <div className="flex flex-col items-center justify-center py-12">
+            <Loader2 className="w-8 h-8 text-[hsl(var(--primary))] animate-spin mb-3" />
+            <p className="text-[hsl(var(--muted-foreground))]">Lade Übungen...</p>
+          </div>
+        ) : isError ? (
+          <Card>
+            <CardContent className="p-6 text-center">
+              <p className="text-red-400">Fehler beim Laden der Übungen</p>
+            </CardContent>
+          </Card>
+        ) : exercises.length === 0 ? (
+          <Card>
+            <CardContent className="p-6 text-center">
+              <Dumbbell className="w-12 h-12 text-[hsl(var(--muted-foreground))] mx-auto mb-3" />
+              <p className="text-[hsl(var(--muted-foreground))]">
+                Keine Übungen gefunden
+              </p>
+            </CardContent>
+          </Card>
+        ) : (
+          <>
+            <div className="grid grid-cols-2 gap-3">
+              {exercises.map((exercise) => (
                 <Card
                   key={exercise.id}
-                  className="cursor-pointer hover:border-[hsl(var(--primary))] transition-colors"
-                  onClick={() => handleSelectExercise(exercise)}
+                  className="cursor-pointer overflow-hidden p-0 hover:scale-[1.02] transition-transform duration-200"
+                  onClick={() => handleExerciseClick(exercise.id)}
                 >
-                  <CardContent className="p-4 flex items-center gap-3">
-                    {exercise.image_url && (
-                      <img
-                        src={exercise.image_url}
-                        alt={exercise.name}
-                        className="w-12 h-12 rounded-lg object-cover"
-                      />
-                    )}
-                    <div className="flex-1">
-                      <h3 className="font-semibold">{exercise.name}</h3>
-                      {exercise.primary_category && (
-                        <p className="text-xs text-[hsl(var(--muted-foreground))]">
-                          {exercise.primary_category}
-                        </p>
+                  <CardContent className="p-0">
+                    {/* Exercise Image */}
+                    <div className="aspect-[4/3] bg-[hsl(var(--surface-strong))] relative overflow-hidden">
+                      {exercise.image_url ? (
+                        <img
+                          src={exercise.image_url}
+                          alt={exercise.name_de || exercise.name}
+                          className="w-full h-full object-cover"
+                          loading="lazy"
+                        />
+                      ) : (
+                        <div className="w-full h-full flex items-center justify-center">
+                          <Dumbbell className="w-8 h-8 text-[hsl(var(--muted-foreground))]" />
+                        </div>
                       )}
+                    </div>
+
+                    {/* Exercise Info */}
+                    <div className="p-3">
+                      <h3 className="font-medium text-sm line-clamp-2 leading-tight">
+                        {exercise.name_de || exercise.name}
+                      </h3>
                     </div>
                   </CardContent>
                 </Card>
               ))}
+            </div>
 
-              {/* No results */}
-              {exercises.length === 0 && !isLoading && (
-                <Card>
-                  <CardContent className="p-6 text-center">
-                    <p className="text-[hsl(var(--muted-foreground))]">
-                      {searchQuery ? 'Keine Übung gefunden' : 'Suche nach einer Übung...'}
-                    </p>
-                  </CardContent>
-                </Card>
+            {/* Load More Trigger */}
+            <div ref={loadMoreRef} className="py-8 flex justify-center">
+              {isFetchingNextPage && (
+                <Loader2 className="w-6 h-6 text-[hsl(var(--primary))] animate-spin" />
+              )}
+              {!hasNextPage && exercises.length > 0 && (
+                <p className="text-sm text-[hsl(var(--muted-foreground))]">
+                  Alle Übungen geladen
+                </p>
               )}
             </div>
-          )}
-        </>
-      ) : (
-        /* Workout Form */
-        <>
-          {/* Selected Exercise */}
-          <Card className="mb-6">
-            <CardContent className="p-4">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-3">
-                  {selectedExercise.image_url && (
-                    <img
-                      src={selectedExercise.image_url}
-                      alt={selectedExercise.name}
-                      className="w-12 h-12 rounded-lg object-cover"
-                    />
-                  )}
-                  <div>
-                    <h3 className="font-semibold text-lg">{selectedExercise.name}</h3>
-                    {selectedExercise.primary_category && (
-                      <p className="text-xs text-[hsl(var(--muted-foreground))]">
-                        {selectedExercise.primary_category}
-                      </p>
-                    )}
-                  </div>
-                </div>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={() => setSelectedExercise(null)}
-                >
-                  Ändern
-                </Button>
-              </div>
-            </CardContent>
-          </Card>
-
-          {/* Input Fields */}
-          <div className="space-y-4 mb-6">
-            <div>
-              <label className="text-sm text-[hsl(var(--muted-foreground))] mb-2 block">
-                Gewicht (kg) - Satz {currentSetNumber}
-              </label>
-              <Input
-                type="number"
-                placeholder={weightPlaceholder}
-                value={weight}
-                onChange={(e) => setWeight(e.target.value)}
-                className="text-2xl font-bold h-16 text-center placeholder:text-blue-400/60"
-              />
-            </div>
-
-            <div>
-              <label className="text-sm text-[hsl(var(--muted-foreground))] mb-2 block">
-                Wiederholungen
-              </label>
-              <Input
-                type="number"
-                placeholder={repsPlaceholder}
-                value={reps}
-                onChange={(e) => setReps(e.target.value)}
-                className="text-2xl font-bold h-16 text-center placeholder:text-blue-400/60"
-              />
-            </div>
-
-            <div>
-              <label className="text-sm text-[hsl(var(--muted-foreground))] mb-2 block">
-                Notizen (optional)
-              </label>
-              <Input
-                type="text"
-                placeholder="z.B. langsame Ausführung..."
-                value={notes}
-                onChange={(e) => setNotes(e.target.value)}
-              />
-            </div>
-          </div>
-
-          {/* Save Button */}
-          <Button
-            size="lg"
-            className="w-full"
-            onClick={() => saveWorkoutMutation.mutate()}
-            disabled={!weight || !reps || saveWorkoutMutation.isPending}
-          >
-            {saveWorkoutMutation.isPending ? 'Wird gespeichert...' : 'Speichern'}
-          </Button>
-        </>
-      )}
+          </>
+        )}
+      </div>
     </div>
   )
 }

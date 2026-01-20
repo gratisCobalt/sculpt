@@ -57,9 +57,9 @@ async function handleListExercises(ctx: RequestContext): Promise<Response> {
     }
 
     if (search) {
-      query += ` AND (LOWER(e.name) LIKE LOWER(?${paramIndex}) OR LOWER(e.name_de) LIKE LOWER(?${paramIndex}))`
-      params.push(`%${search}%`)
-      paramIndex++
+      query += ` AND (LOWER(e.name) LIKE LOWER(?${paramIndex}) OR LOWER(e.name_de) LIKE LOWER(?${paramIndex + 1}))`
+      params.push(`%${search}%`, `%${search}%`)
+      paramIndex += 2
     }
 
     query += ` ORDER BY e.name LIMIT ?${paramIndex} OFFSET ?${paramIndex + 1}`

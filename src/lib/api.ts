@@ -136,6 +136,30 @@ class ApiClient {
     return this.request<any[]>(`/api/exercises?${params}`)
   }
 
+  async getExercisesPaginated(options: { 
+    search?: string
+    bodyPart?: string
+    page?: number
+    limit?: number 
+  } = {}) {
+    const params = new URLSearchParams()
+    if (options.search) params.append('search', options.search)
+    if (options.bodyPart && options.bodyPart !== 'all') params.append('bodyPart', options.bodyPart)
+    if (options.page) params.append('page', options.page.toString())
+    if (options.limit) params.append('limit', options.limit.toString())
+    return this.request<{
+      exercises: Array<{
+        id: number
+        external_id: string
+        name: string
+        name_de: string | null
+        image_url: string | null
+        video_url: string | null
+      }>
+      pagination: { page: number; limit: number; total: number; totalPages: number }
+    }>(`/api/exercises?${params}`)
+  }
+
   async getExercise(id: number) {
     return this.request<any>(`/api/exercises/${id}`)
   }
