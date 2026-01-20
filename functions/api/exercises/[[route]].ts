@@ -26,7 +26,7 @@ async function handleListExercises(ctx: RequestContext): Promise<Response> {
     const search = url.searchParams.get('search')
 
     let query = `
-      SELECT DISTINCT e.id, e.external_id, e.name, e.name_de, e.image_url, e.video_url
+      SELECT DISTINCT e.id, e.external_id, e.name, e.name_de, e.image_url, e.video_url, bp.code as body_part, bp.name_de as body_part_name
       FROM exercise e
       LEFT JOIN exercise_body_part ebp ON e.id = ebp.exercise_id
       LEFT JOIN body_part bp ON ebp.body_part_id = bp.id

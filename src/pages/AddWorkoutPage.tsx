@@ -1,9 +1,9 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
-import { useNavigate } from 'react-router-dom'
 import { useInfiniteQuery } from '@tanstack/react-query'
 import { Search, Dumbbell, Loader2 } from 'lucide-react'
 import { Input } from '@/components/ui/input'
 import { Card, CardContent } from '@/components/ui/card'
+import { ExerciseInputModal } from '@/components/ExerciseInputModal'
 import { cn } from '@/lib/utils'
 import { api } from '@/lib/api'
 
@@ -19,6 +19,20 @@ const categories = [
   { id: 'waist', name: 'Bauch' },
 ]
 
+// Map body part codes to German names for badges
+const bodyPartLabels: Record<string, string> = {
+  chest: 'Brust',
+  back: 'Rücken',
+  upper_arms: 'Arme',
+  lower_arms: 'Unterarme',
+  shoulders: 'Schultern',
+  upper_legs: 'Beine',
+  lower_legs: 'Waden',
+  waist: 'Bauch',
+  cardio: 'Cardio',
+  neck: 'Nacken',
+}
+
 // Custom hook for debounced value
 function useDebounce<T>(value: T, delay: number): T {
   const [debouncedValue, setDebouncedValue] = useState<T>(value)
@@ -31,10 +45,21 @@ function useDebounce<T>(value: T, delay: number): T {
   return debouncedValue
 }
 
+interface Exercise {
+  id: number
+  external_id: string
+  name: string
+  name_de: string | null
+  image_url: string | null
+  video_url: string | null
+  body_part: string | null
+  body_part_name: string | null
+}
+
 export default function AddWorkoutPage() {
-  const navigate = useNavigate()
   const [searchQuery, setSearchQuery] = useState('')
   const [selectedCategory, setSelectedCategory] = useState('all')
+  const [selectedExercise, setSelectedExercise] = useState<Exercise | null>(null)
   const loadMoreRef = useRef<HTMLDivElement>(null)
 
   const debouncedSearch = useDebounce(searchQuery, 300)
@@ -94,10 +119,26 @@ export default function AddWorkoutPage() {
   const exercises = data?.pages.flatMap((page) => page.exercises) ?? []
   const totalCount = data?.pages[0]?.pagination.total ?? 0
 
-  const handleExerciseClick = (exerciseId: number) => {
-    // Navigate to exercise detail or add to workout
-    navigate(`/guided-training?exerciseId=${exerciseId}`)
+  const handleExerciseClick = (exercise: Exercise) => {
+    setSelectedExercise(exercise)
   }
+
+  // Get body part label from exercise data or selected category
+  const getBodyPartLabel = (exercise: Exercise): string | null => {
+    // If we have body part data from the exercise, use it
+    if (exercise.body_part_name) {
+      return exercise.body_part_name
+    }
+    if (exercise.body_part) {
+      return bodyPartLabels[exercise.body_part] || exercise.body_part
+    }
+    // Fallback to selected category
+    if (selectedCategory !== 'all') {
+      return bodyPartLabels[selectedCategory] || null
+    }
+    return null
+  }
+
 
   return (
     <div className="min-h-screen pb-24 safe-top">
@@ -179,38 +220,51 @@ export default function AddWorkoutPage() {
         ) : (
           <>
             <div className="grid grid-cols-2 gap-3">
-              {exercises.map((exercise) => (
-                <Card
-                  key={exercise.id}
-                  className="cursor-pointer overflow-hidden p-0 hover:scale-[1.02] transition-transform duration-200"
-                  onClick={() => handleExerciseClick(exercise.id)}
-                >
-                  <CardContent className="p-0">
-                    {/* Exercise Image */}
-                    <div className="aspect-[4/3] bg-[hsl(var(--surface-strong))] relative overflow-hidden">
-                      {exercise.image_url ? (
-                        <img
-                          src={exercise.image_url}
-                          alt={exercise.name_de || exercise.name}
-                          className="w-full h-full object-cover"
-                          loading="lazy"
-                        />
-                      ) : (
-                        <div className="w-full h-full flex items-center justify-center">
-                          <Dumbbell className="w-8 h-8 text-[hsl(var(--muted-foreground))]" />
-                        </div>
-                      )}
-                    </div>
+              {exercises.map((ex) => {
+                const bodyPartLabel = getBodyPartLabel(ex as Exercise)
 
-                    {/* Exercise Info */}
-                    <div className="p-3">
-                      <h3 className="font-medium text-sm line-clamp-2 leading-tight">
-                        {exercise.name_de || exercise.name}
-                      </h3>
-                    </div>
-                  </CardContent>
-                </Card>
-              ))}
+                return (
+                  <Card
+                    key={ex.id}
+                    className="cursor-pointer overflow-hidden p-0 hover:scale-[1.02] transition-transform duration-200"
+                    onClick={() => handleExerciseClick(ex as Exercise)}
+                  >
+                    <CardContent className="p-0">
+                      {/* Exercise Image with Badge Overlay */}
+                      <div className="aspect-[4/3] bg-[hsl(var(--surface-strong))] relative overflow-hidden">
+                        {ex.image_url ? (
+                          <img
+                            src={ex.image_url}
+                            alt={ex.name_de || ex.name}
+                            className="w-full h-full object-cover"
+                            loading="lazy"
+                          />
+                        ) : (
+                          <div className="w-full h-full flex items-center justify-center">
+                            <Dumbbell className="w-8 h-8 text-[hsl(var(--muted-foreground))]" />
+                          </div>
+                        )}
+
+                        {/* Category Badge Overlay */}
+                        {bodyPartLabel && (
+                          <div className="absolute bottom-2 left-2">
+                            <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold gradient-primary text-gray-900 shadow-lg">
+                              {bodyPartLabel}
+                            </span>
+                          </div>
+                        )}
+                      </div>
+
+                      {/* Exercise Info */}
+                      <div className="p-3">
+                        <h3 className="font-medium text-sm line-clamp-2 leading-tight">
+                          {ex.name_de || ex.name}
+                        </h3>
+                      </div>
+                    </CardContent>
+                  </Card>
+                )
+              })}
             </div>
 
             {/* Load More Trigger */}
@@ -218,15 +272,24 @@ export default function AddWorkoutPage() {
               {isFetchingNextPage && (
                 <Loader2 className="w-6 h-6 text-[hsl(var(--primary))] animate-spin" />
               )}
-              {!hasNextPage && exercises.length > 0 && (
-                <p className="text-sm text-[hsl(var(--muted-foreground))]">
-                  Alle Übungen geladen
-                </p>
-              )}
             </div>
           </>
         )}
       </div>
+
+      {/* Exercise Input Modal */}
+      {selectedExercise && (
+        <ExerciseInputModal
+          isOpen={!!selectedExercise}
+          onClose={() => setSelectedExercise(null)}
+          exercise={{
+            id: selectedExercise.id,
+            name: selectedExercise.name,
+            name_de: selectedExercise.name_de,
+            image_url: selectedExercise.image_url,
+          }}
+        />
+      )}
     </div>
   )
 }
