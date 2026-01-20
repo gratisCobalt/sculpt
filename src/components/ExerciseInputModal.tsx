@@ -4,6 +4,7 @@ import { X, Plus, Trash2, MessageSquare, Loader2, Dumbbell } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { api } from '@/lib/api'
+import { getCategoryIcon } from '@/components/CategoryIcons'
 
 interface ExerciseInputModalProps {
     isOpen: boolean
@@ -13,6 +14,7 @@ interface ExerciseInputModalProps {
         name: string
         name_de?: string | null
         image_url?: string | null
+        body_part?: string | null
     }
 }
 
@@ -124,45 +126,50 @@ export function ExerciseInputModal({ isOpen, onClose, exercise }: ExerciseInputM
             />
 
             {/* Modal */}
-            <div className="relative w-full max-w-md mx-4 mb-20 sm:mb-4 rounded-2xl bg-[hsl(var(--background))] border border-[hsl(var(--border))] overflow-hidden animate-slide-up shadow-2xl">
-                {/* Header */}
-                <div className="flex items-center gap-4 p-4 bg-[hsl(var(--surface-soft))] border-b border-[hsl(var(--border))]">
-                    {/* Exercise Image */}
-                    <div className="w-14 h-14 rounded-xl bg-[hsl(var(--surface-strong))] overflow-hidden flex-shrink-0">
-                        {exercise.image_url ? (
-                            <img
-                                src={exercise.image_url}
-                                alt={exerciseName}
-                                className="w-full h-full object-cover"
-                            />
-                        ) : (
-                            <div className="w-full h-full flex items-center justify-center">
-                                <Dumbbell className="w-6 h-6 text-[hsl(var(--muted-foreground))]" />
-                            </div>
-                        )}
-                    </div>
+            <div className="relative w-full max-w-md mx-4 mb-20 sm:mb-4 rounded-2xl bg-[hsl(var(--background))] border border-[hsl(var(--border))] overflow-hidden animate-slide-up shadow-2xl flex flex-col max-h-[85vh]">
 
-                    <div className="flex-1 min-w-0">
-                        <h2 className="font-bold text-lg truncate">{exerciseName}</h2>
+                {/* Large Header Image */}
+                <div className="w-full aspect-square bg-[hsl(var(--surface-strong))] relative shrink-0 flex items-center justify-center">
+                    {exercise.image_url ? (
+                        <img
+                            src={exercise.image_url}
+                            alt={exerciseName}
+                            className="w-full h-full object-contain"
+                        />
+                    ) : (
+                        <div className="w-full h-full flex items-center justify-center">
+                            <Dumbbell className="w-12 h-12 text-[hsl(var(--muted-foreground))]" />
+                        </div>
+                    )}
+                    {/* Close Button Overlay */}
+                    <button
+                        onClick={onClose}
+                        className="absolute top-4 right-4 p-2 rounded-full bg-black/40 text-white hover:bg-black/60 transition-colors backdrop-blur-sm"
+                    >
+                        <X className="w-5 h-5" />
+                    </button>
+                </div>
+
+                {/* Header (Title & Actions) */}
+                <div className="flex items-center gap-4 p-4 border-b border-[hsl(var(--border))] bg-[hsl(var(--background))]">
+
+                    <div className="flex-1 min-w-0 flex items-center gap-2">
+                        <h2 className="font-bold text-xl truncate">{exerciseName}</h2>
+                        {exercise.body_part && (() => {
+                            const Icon = getCategoryIcon(exercise.body_part)
+                            return <Icon className="w-5 h-5 text-[hsl(var(--primary))] flex-shrink-0" />
+                        })()}
                     </div>
 
                     {/* Note Button */}
                     <button
                         onClick={() => setShowNoteInput(!showNoteInput)}
                         className={`p-2 rounded-full transition-colors ${showNoteInput || workoutNote
-                                ? 'text-[hsl(var(--primary))] bg-[hsl(var(--primary))]/10'
-                                : 'text-[hsl(var(--muted-foreground))] hover:bg-[hsl(var(--surface-strong))]'
+                            ? 'text-[hsl(var(--primary))] bg-[hsl(var(--primary))]/10'
+                            : 'text-[hsl(var(--muted-foreground))] hover:bg-[hsl(var(--surface-strong))]'
                             }`}
                     >
                         <MessageSquare className="w-5 h-5" />
-                    </button>
-
-                    {/* Close Button */}
-                    <button
-                        onClick={onClose}
-                        className="p-2 rounded-full hover:bg-[hsl(var(--surface-strong))] transition-colors"
-                    >
-                        <X className="w-5 h-5" />
                     </button>
                 </div>
 

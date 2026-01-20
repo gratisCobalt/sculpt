@@ -39,9 +39,17 @@ async function handleListExercises(ctx: RequestContext): Promise<Response> {
     let paramIndex = 1
 
     if (bodyPart && bodyPart !== 'all') {
-      query += ` AND LOWER(bp.code) = LOWER(?${paramIndex})`
-      params.push(bodyPart)
-      paramIndex++
+      if (bodyPart.includes(',')) {
+        const parts = bodyPart.split(',')
+        const placeholders = parts.map((_, i) => `?${paramIndex + i}`).join(', ')
+        query += ` AND LOWER(bp.code) IN (${placeholders})`
+        params.push(...parts)
+        paramIndex += parts.length
+      } else {
+        query += ` AND LOWER(bp.code) = LOWER(?${paramIndex})`
+        params.push(bodyPart)
+        paramIndex++
+      }
     }
 
     if (equipment && equipment !== 'all') {
@@ -80,10 +88,20 @@ async function handleListExercises(ctx: RequestContext): Promise<Response> {
       LEFT JOIN exercise_type et ON e.exercise_type_id = et.id
       WHERE 1=1
     `
-    const countParams = params.slice(0, -2) // Remove limit and offset
+    const countParams = params.slice(0, -(search ? 4 : 2)) // Remove limit/offset logic (simplified)
+    // Actually we need to rebuild parameters for count query to be safe or splice properly.
+    // Simpler: Just rebuild params from scratch or slice correct amount.
+    // The LIMIT/OFFSET are the last 2 params.
+    const finalCountParams = params.slice(0, params.length - 2)
 
     if (bodyPart && bodyPart !== 'all') {
-      countQuery += ' AND LOWER(bp.code) = LOWER(?)'
+      if (bodyPart.includes(',')) {
+         const parts = bodyPart.split(',')
+         const placeholders = parts.map(() => '?').join(', ')
+         countQuery += ` AND LOWER(bp.code) IN (${placeholders})`
+      } else {
+         countQuery += ' AND LOWER(bp.code) = LOWER(?)'
+      }
     }
     if (equipment && equipment !== 'all') {
       countQuery += ' AND LOWER(eq.code) = LOWER(?)'
@@ -95,7 +113,7 @@ async function handleListExercises(ctx: RequestContext): Promise<Response> {
       countQuery += ' AND (LOWER(e.name) LIKE LOWER(?) OR LOWER(e.name_de) LIKE LOWER(?))'
     }
 
-    const countResult = await env.database.prepare(countQuery).bind(...countParams).first<{ count: number }>()
+    const countResult = await env.database.prepare(countQuery).bind(...finalCountParams).first<{ count: number }>()
 
     return jsonResponse({
       exercises: result.results || [],

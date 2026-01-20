@@ -261,6 +261,7 @@ export default function AddWorkoutPage() {
             name: selectedExercise.name,
             name_de: selectedExercise.name_de,
             image_url: selectedExercise.image_url,
+            body_part: selectedExercise.body_part,
           }}
         />
       )}
