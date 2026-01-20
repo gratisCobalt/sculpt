@@ -26,7 +26,7 @@ async function handleListExercises(ctx: RequestContext): Promise<Response> {
     const search = url.searchParams.get('search')
 
     let query = `
-      SELECT DISTINCT e.id, e.external_id, e.name, e.name_de, e.image_url, e.video_url, bp.code as body_part, bp.name_de as body_part_name
+      SELECT e.id, e.external_id, e.name, e.name_de, e.image_url, e.video_url, MIN(bp.code) as body_part, MIN(bp.name_de) as body_part_name
       FROM exercise e
       LEFT JOIN exercise_body_part ebp ON e.id = ebp.exercise_id
       LEFT JOIN body_part bp ON ebp.body_part_id = bp.id
@@ -62,7 +62,7 @@ async function handleListExercises(ctx: RequestContext): Promise<Response> {
       paramIndex += 2
     }
 
-    query += ` ORDER BY e.name LIMIT ?${paramIndex} OFFSET ?${paramIndex + 1}`
+    query += ` GROUP BY e.id ORDER BY e.name LIMIT ?${paramIndex} OFFSET ?${paramIndex + 1}`
     params.push(limit, offset)
 
     // Build the query with positional parameters for D1

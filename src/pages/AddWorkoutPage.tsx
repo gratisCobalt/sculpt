@@ -4,6 +4,7 @@ import { Search, Dumbbell, Loader2 } from 'lucide-react'
 import { Input } from '@/components/ui/input'
 import { Card, CardContent } from '@/components/ui/card'
 import { ExerciseInputModal } from '@/components/ExerciseInputModal'
+import { getCategoryIcon } from '@/components/CategoryIcons'
 import { cn } from '@/lib/utils'
 import { api } from '@/lib/api'
 
@@ -19,19 +20,7 @@ const categories = [
   { id: 'waist', name: 'Bauch' },
 ]
 
-// Map body part codes to German names for badges
-const bodyPartLabels: Record<string, string> = {
-  chest: 'Brust',
-  back: 'Rücken',
-  upper_arms: 'Arme',
-  lower_arms: 'Unterarme',
-  shoulders: 'Schultern',
-  upper_legs: 'Beine',
-  lower_legs: 'Waden',
-  waist: 'Bauch',
-  cardio: 'Cardio',
-  neck: 'Nacken',
-}
+
 
 // Custom hook for debounced value
 function useDebounce<T>(value: T, delay: number): T {
@@ -123,21 +112,7 @@ export default function AddWorkoutPage() {
     setSelectedExercise(exercise)
   }
 
-  // Get body part label from exercise data or selected category
-  const getBodyPartLabel = (exercise: Exercise): string | null => {
-    // If we have body part data from the exercise, use it
-    if (exercise.body_part_name) {
-      return exercise.body_part_name
-    }
-    if (exercise.body_part) {
-      return bodyPartLabels[exercise.body_part] || exercise.body_part
-    }
-    // Fallback to selected category
-    if (selectedCategory !== 'all') {
-      return bodyPartLabels[selectedCategory] || null
-    }
-    return null
-  }
+
 
 
   return (
@@ -221,7 +196,7 @@ export default function AddWorkoutPage() {
           <>
             <div className="grid grid-cols-2 gap-3">
               {exercises.map((ex) => {
-                const bodyPartLabel = getBodyPartLabel(ex as Exercise)
+
 
                 return (
                   <Card
@@ -245,21 +220,20 @@ export default function AddWorkoutPage() {
                           </div>
                         )}
 
-                        {/* Category Badge Overlay */}
-                        {bodyPartLabel && (
-                          <div className="absolute bottom-2 left-2">
-                            <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold gradient-primary text-gray-900 shadow-lg">
-                              {bodyPartLabel}
-                            </span>
-                          </div>
-                        )}
+
                       </div>
 
                       {/* Exercise Info */}
                       <div className="p-3">
-                        <h3 className="font-medium text-sm line-clamp-2 leading-tight">
-                          {ex.name_de || ex.name}
-                        </h3>
+                        <div className="flex justify-between items-start gap-2">
+                          <h3 className="font-medium text-sm line-clamp-2 leading-tight flex-1">
+                            {ex.name_de || ex.name}
+                          </h3>
+                          {(() => {
+                            const CategoryIcon = getCategoryIcon(ex.body_part)
+                            return <CategoryIcon className="w-5 h-5 text-[hsl(var(--primary))] flex-shrink-0" />
+                          })()}
+                        </div>
                       </div>
                     </CardContent>
                   </Card>

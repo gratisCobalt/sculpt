@@ -155,6 +155,8 @@ class ApiClient {
         name_de: string | null
         image_url: string | null
         video_url: string | null
+        body_part: string | null
+        body_part_name: string | null
       }>
       pagination: { page: number; limit: number; total: number; totalPages: number }
     }>(`/api/exercises?${params}`)

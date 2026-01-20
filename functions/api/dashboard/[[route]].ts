@@ -195,7 +195,14 @@ async function handleGetExerciseProgress(ctx: RequestContext): Promise<Response>
       }
     })
 
-    return jsonResponse(Array.from(exerciseMap.values()))
+    // Sort by latest workout date descending
+    const exercises = Array.from(exerciseMap.values()).sort((a, b) => {
+      const dateA = a.history[a.history.length - 1]?.date || ''
+      const dateB = b.history[b.history.length - 1]?.date || ''
+      return new Date(dateB).getTime() - new Date(dateA).getTime()
+    })
+
+    return jsonResponse(exercises)
   } catch (error) {
     console.error('Exercise progress error:', error)
     return errorResponse('Failed to get exercise progress', 500)
