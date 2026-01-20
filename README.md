@@ -23,7 +23,7 @@ Sculpt ist eine moderne Fitness-App für das Tracking von Workouts, Trainingsfor
 
 ```bash
 git clone https://github.com/gratisCobalt/sculpt-self-hosted.git
-cd sculpt-native
+cd sculpt-self-hosted
 ```
 
 ### 2. Dependencies installieren
