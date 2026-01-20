@@ -126,15 +126,15 @@ export function ExerciseInputModal({ isOpen, onClose, exercise }: ExerciseInputM
             />
 
             {/* Modal */}
-            <div className="relative w-full max-w-md mx-4 mb-20 sm:mb-4 rounded-2xl bg-[hsl(var(--background))] border border-[hsl(var(--border))] overflow-hidden animate-slide-up shadow-2xl flex flex-col max-h-[85vh]">
+            <div className="relative w-full max-w-md mx-4 mb-20 sm:mb-4 rounded-2xl bg-[hsl(var(--background))] border border-[hsl(var(--border))] animate-slide-up shadow-2xl flex flex-col max-h-[85vh] overflow-y-auto scrollbar-hide">
 
                 {/* Large Header Image */}
-                <div className="w-full aspect-square bg-[hsl(var(--surface-strong))] relative shrink-0 flex items-center justify-center">
+                <div className="w-full h-56 bg-[#fcfcfc] relative shrink-0 flex items-center justify-center overflow-hidden">
                     {exercise.image_url ? (
                         <img
                             src={exercise.image_url}
                             alt={exerciseName}
-                            className="w-full h-full object-contain"
+                            className="w-full h-full object-contain scale-110"
                         />
                     ) : (
                         <div className="w-full h-full flex items-center justify-center">
@@ -186,21 +186,20 @@ export function ExerciseInputModal({ isOpen, onClose, exercise }: ExerciseInputM
                     </div>
                 )}
 
-                {/* Content */}
-                <div className="p-4 max-h-[50vh] overflow-y-auto bg-[hsl(var(--background))]">
-                    <h3 className="text-sm font-medium text-[hsl(var(--muted-foreground))] mb-3">
-                        Sätze
-                    </h3>
+                {/* Scrollable Content (Sets) - Removed overflow-y-auto to let parent scroll */}
+                <div className="p-4 space-y-4">
+                    <div className="flex items-center justify-between">
+                        <h3 className="font-semibold text-[hsl(var(--foreground))]">Sätze</h3>
+                        <span className="text-xs text-[hsl(var(--muted-foreground))]">
+                            kg &times; Wiederholungen
+                        </span>
+                    </div>
 
-                    <div className="space-y-2">
+                    <div className="space-y-3">
                         {sets.map((set, index) => (
-                            <div
-                                key={set.id}
-                                className="flex items-center gap-2 p-3 rounded-xl bg-[hsl(var(--surface-soft))]"
-                            >
-                                {/* Set Number */}
-                                <div className="w-8 h-8 rounded-full border-2 border-[hsl(var(--primary))] flex items-center justify-center flex-shrink-0">
-                                    <span className="text-sm font-bold text-[hsl(var(--primary))]">{index + 1}</span>
+                            <div key={set.id} className="flex gap-2 items-center animate-slide-up" style={{ animationDelay: `${index * 50}ms` }}>
+                                <div className="w-8 h-10 flex items-center justify-center bg-[hsl(var(--surface-soft))] rounded-lg font-medium text-sm border border-[hsl(var(--border))]">
+                                    {index + 1}
                                 </div>
 
                                 {/* Weight Input with inline unit */}
@@ -211,7 +210,8 @@ export function ExerciseInputModal({ isOpen, onClose, exercise }: ExerciseInputM
                                         placeholder="0"
                                         value={set.weight}
                                         onChange={(e) => updateSet(set.id, 'weight', e.target.value)}
-                                        className="h-10 text-center text-sm pr-8 bg-[hsl(var(--background))]"
+                                        className="h-10 text-center text-sm pr-10 bg-[hsl(var(--background))]"
+                                        autoFocus={index === 0 && !set.weight}
                                     />
                                     <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-[hsl(var(--muted-foreground))] pointer-events-none">
                                         kg
@@ -255,8 +255,8 @@ export function ExerciseInputModal({ isOpen, onClose, exercise }: ExerciseInputM
                     </div>
                 </div>
 
-                {/* Footer */}
-                <div className="flex gap-3 p-4 bg-[hsl(var(--surface-soft))] border-t border-[hsl(var(--border))]">
+                {/* Footer - Sticky at bottom */}
+                <div className="sticky bottom-0 z-10 flex gap-3 p-4 bg-[hsl(var(--surface-soft))] border-t border-[hsl(var(--border))]">
                     <Button variant="secondary" className="flex-1" onClick={onClose}>
                         Abbrechen
                     </Button>
