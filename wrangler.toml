@@ -9,7 +9,7 @@ account_id = "7a23cded2cf8c324b4f121f62b7e2f8d"
 # Default/Development Database
 [[d1_databases]]
 binding = "database"
-database_name = "sculpt-db"
+database_name = "sculpt-dev"
 database_id = "cc89a2b0-17f0-4fe4-9c90-c74076226dd8"
 
 # =====================================================
