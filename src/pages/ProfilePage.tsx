@@ -27,24 +27,6 @@ import { usePushNotifications } from '@/hooks/usePushNotifications'
 const BUILD_NUMBER = '1.0.0'
 const GOOGLE_CLIENT_ID = import.meta.env.VITE_GOOGLE_CLIENT_ID || ''
 
-// Google Identity Services types
-declare global {
-  interface Window {
-    google?: {
-      accounts: {
-        id: {
-          initialize: (config: {
-            client_id: string
-            callback: (response: { credential: string }) => void
-            auto_select?: boolean
-          }) => void
-          prompt: () => void
-        }
-      }
-    }
-  }
-}
-
 const rarityColors: Record<string, string> = {
   common: 'bg-slate-500/20 border-slate-500/30',
   rare: 'bg-blue-500/20 border-blue-500/30',
@@ -232,6 +214,69 @@ export default function ProfilePage() {
               {badgeProgress}
             </p>
             <p className="text-xs text-[hsl(var(--muted-foreground))]">erreicht</p>
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* Account Linking Section */}
+      <div className="mb-8">
+        <h2 className="text-lg font-semibold flex items-center gap-2 mb-4">
+          <Link2 className="w-5 h-5 text-[hsl(var(--primary))]" />
+          Verknüpfte Konten
+        </h2>
+
+        <Card>
+          <CardContent className="p-4">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-4">
+                <div className="w-10 h-10 rounded-full bg-white flex items-center justify-center border shadow-sm">
+                  <FcGoogle className="w-6 h-6" />
+                </div>
+                <div>
+                  <h3 className="font-semibold">Google</h3>
+                  <p className="text-sm text-[hsl(var(--muted-foreground))]">
+                    {user?.google_id ? 'Verknüpft' : 'Nicht verknüpft'}
+                  </p>
+                </div>
+              </div>
+
+              {user?.google_id ? (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="text-red-500 hover:text-red-600 hover:bg-red-500/10"
+                  onClick={handleUnlinkGoogle}
+                  disabled={googleUnlinking}
+                >
+                  {googleUnlinking ? (
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                  ) : (
+                    <Unlink className="w-4 h-4" />
+                  )}
+                </Button>
+              ) : (
+                GOOGLE_CLIENT_ID ? (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={handleLinkGoogle}
+                    disabled={googleLinking}
+                  >
+                    {googleLinking ? (
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                    ) : (
+                      'Verknüpfen'
+                    )}
+                  </Button>
+                ) : (
+                  <span className="text-xs text-yellow-500">Nicht konfiguriert</span>
+                )
+              )}
+            </div>
+
+            {googleError && (
+              <p className="text-xs text-red-500 mt-2">{googleError}</p>
+            )}
           </CardContent>
         </Card>
       </div>
