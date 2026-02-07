@@ -1,4 +1,4 @@
-import { useState, useCallback, useEffect, useRef } from 'react'
+import { useState, useCallback, useEffect, useRef, useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
 import {
   User,
@@ -79,6 +79,16 @@ export default function OnboardingPage() {
   const [bodyWeight, setBodyWeight] = useState('')
   const [selectedFocusAreas, setSelectedFocusAreas] = useState<string[]>([])
 
+  // Capture current time at mount using lazy initialization
+  const [nowMs] = useState(() => Date.now())
+
+  // Calculate age using useMemo with the captured time
+  const calculatedAge = useMemo(() => {
+    if (!birthdate) return null
+    const birthMs = new Date(birthdate).getTime()
+    return Math.floor((nowMs - birthMs) / (365.25 * 24 * 60 * 60 * 1000))
+  }, [birthdate, nowMs])
+
   // Cleanup intervals on unmount
   useEffect(() => {
     return () => {
@@ -140,7 +150,7 @@ export default function OnboardingPage() {
         experience_level: experience,
         body_weight_kg: parseFloat(bodyWeight),
         onboarding_completed: true,
-      } as any)
+      })
 
       // Start AI plan generation
       setIsLoading(false)
@@ -185,7 +195,7 @@ export default function OnboardingPage() {
       // Show confetti after brief delay
       setTimeout(() => {
         setShowConfetti(true)
-        
+
         // Refresh profile and navigate after animation
         refreshProfile().then(() => {
           setTimeout(() => {
@@ -195,11 +205,11 @@ export default function OnboardingPage() {
       }, 500)
     } catch (error) {
       console.error('Error completing onboarding:', error)
-      
+
       // Clear timers
       if (timeoutRef.current) clearTimeout(timeoutRef.current)
       if (progressIntervalRef.current) clearInterval(progressIntervalRef.current)
-      
+
       // If we were generating plan, show error
       if (isGeneratingPlan) {
         setGenerationError('Trainingsplan konnte nicht erstellt werden. Bitte versuche es später erneut oder kontaktiere den Support unter info@sculpt-app.de')
@@ -235,8 +245,8 @@ export default function OnboardingPage() {
             <p className="text-[hsl(var(--muted-foreground))] mb-8">
               {generationError}
             </p>
-            <Button 
-              size="lg" 
+            <Button
+              size="lg"
               onClick={() => {
                 setGenerationError(null)
                 navigate('/dashboard')
@@ -251,7 +261,7 @@ export default function OnboardingPage() {
             <div className="w-24 h-24 rounded-full gradient-primary flex items-center justify-center mx-auto mb-8 gradient-shadow">
               <Loader2 className="w-12 h-12 text-gray-900 animate-spin" />
             </div>
-            
+
             <h2 className="text-2xl font-bold mb-2">Dein Trainingsplan wird erstellt</h2>
             <p className="text-[hsl(var(--muted-foreground))] mb-8">
               Unsere KI erstellt einen personalisierten Plan basierend auf deinen Angaben...
@@ -259,7 +269,7 @@ export default function OnboardingPage() {
 
             {/* Progress Bar */}
             <div className="w-full h-3 bg-[hsl(var(--surface-soft))] rounded-full overflow-hidden mb-4">
-              <div 
+              <div
                 className="h-full gradient-primary transition-all duration-300 ease-out"
                 style={{ width: `${generationProgress}%` }}
               />
@@ -375,7 +385,7 @@ export default function OnboardingPage() {
             />
             {birthdate && (
               <p className="text-center mt-4 text-[hsl(var(--muted-foreground))]">
-                {Math.floor((Date.now() - new Date(birthdate).getTime()) / (365.25 * 24 * 60 * 60 * 1000))} Jahre alt
+                {calculatedAge} Jahre alt
               </p>
             )}
           </div>

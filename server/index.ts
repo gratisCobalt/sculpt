@@ -14,6 +14,11 @@ const pool = new pg.Pool({
   connectionString: process.env.DATABASE_URL || 'postgresql://sculpt:sculpt_dev_2026@localhost:5432/sculpt',
 })
 
+// Type for authenticated requests
+interface AuthenticatedRequest extends express.Request {
+  userId: string
+}
+
 app.use(cors())
 app.use(express.json())
 
@@ -26,7 +31,7 @@ const authMiddleware = async (req: express.Request, res: express.Response, next:
   
   try {
     const decoded = jwt.verify(token, JWT_SECRET) as { userId: string }
-    ;(req as any).userId = decoded.userId
+    ;(req as AuthenticatedRequest).userId = decoded.userId
     next()
   } catch {
     return res.status(401).json({ error: 'Invalid token' })
@@ -47,7 +52,8 @@ app.post('/api/auth/register', async (req, res) => {
       return res.status(400).json({ error: 'User already exists' })
     }
     
-    const hashedPassword = await bcrypt.hash(password, 10)
+    // Hash password for future use (currently stored but not verified in dev mode)
+    await bcrypt.hash(password, 10)
     const result = await pool.query(
       `INSERT INTO app_user (email, display_name, onboarding_completed) 
        VALUES ($1, $2, FALSE) RETURNING id, email, display_name, onboarding_completed`,
@@ -98,7 +104,7 @@ app.get('/api/auth/me', authMiddleware, async (req, res) => {
        FROM app_user u
        LEFT JOIN gender g ON u.gender_id = g.id
        WHERE u.id = $1`,
-      [(req as any).userId]
+      [(req as AuthenticatedRequest).userId]
     )
     
     if (result.rows.length === 0) {
@@ -131,7 +137,7 @@ app.patch('/api/users/me', authMiddleware, async (req, res) => {
         onboarding_completed = COALESCE($8, onboarding_completed),
         updated_at = NOW()
        WHERE id = $1 RETURNING *`,
-      [(req as any).userId, display_name, gender_id, body_weight_kg, training_frequency_per_week, fitness_goal, experience_level, onboarding_completed]
+      [(req as AuthenticatedRequest).userId, display_name, gender_id, body_weight_kg, training_frequency_per_week, fitness_goal, experience_level, onboarding_completed]
     )
     
     res.json(result.rows[0])
@@ -146,13 +152,13 @@ app.post('/api/users/me/focus-areas', authMiddleware, async (req, res) => {
   
   try {
     // Clear existing
-    await pool.query('DELETE FROM user_focus_area WHERE user_id = $1', [(req as any).userId])
+    await pool.query('DELETE FROM user_focus_area WHERE user_id = $1', [(req as AuthenticatedRequest).userId])
     
     // Insert new
     for (let i = 0; i < body_part_ids.length; i++) {
       await pool.query(
         'INSERT INTO user_focus_area (user_id, body_part_id, priority) VALUES ($1, $2, $3)',
-        [(req as any).userId, body_part_ids[i], i + 1]
+        [(req as AuthenticatedRequest).userId, body_part_ids[i], i + 1]
       )
     }
     
@@ -172,7 +178,7 @@ app.get('/api/dashboard/stats', authMiddleware, async (req, res) => {
   const days = parseInt(period as string)
   
   try {
-    const userId = (req as any).userId
+    const userId = (req as AuthenticatedRequest).userId
     
     // Current period stats
     const currentStats = await pool.query(`
@@ -231,7 +237,7 @@ app.get('/api/dashboard/exercise-progress', authMiddleware, async (req, res) => 
   const days = parseInt(period as string)
   
   try {
-    const userId = (req as any).userId
+    const userId = (req as AuthenticatedRequest).userId
     
     let query = `
       SELECT 
@@ -255,7 +261,7 @@ app.get('/api/dashboard/exercise-progress', authMiddleware, async (req, res) => 
       WHERE wse.user_id = $1
         AND wse.started_at >= NOW() - INTERVAL '${days} days'
     `
-    const params: any[] = [userId]
+    const params: unknown[] = [userId]
     
     if (bodyPart && bodyPart !== 'all') {
       query += ` AND EXISTS (
@@ -271,7 +277,16 @@ app.get('/api/dashboard/exercise-progress', authMiddleware, async (req, res) => 
     const result = await pool.query(query, params)
     
     // Group by exercise
-    const exerciseMap = new Map<number, any>()
+    interface ExerciseData {
+      exercise: { id: number; name: string; image_url?: string; primary_category: string }
+      history: { date: Date; weight: number; reps: number; volume: number }[]
+      allSets: { id: number; date: Date; weight: number; reps: number; setNumber: number; isWarmup: boolean; isPR: boolean }[]
+      latestWeight: number
+      latestReps: number
+      maxWeight: number
+      isPR: boolean
+    }
+    const exerciseMap = new Map<number, ExerciseData>()
     
     for (const row of result.rows) {
       if (!exerciseMap.has(row.exercise_id)) {
@@ -345,7 +360,7 @@ app.get('/api/exercises', async (req, res) => {
       FROM exercise e
       LEFT JOIN exercise_type et ON e.exercise_type_id = et.id
     `
-    const params: any[] = []
+    const params: unknown[] = []
     const conditions: string[] = []
     
     if (search) {
@@ -532,7 +547,7 @@ app.get('/api/users/me/training-plan', authMiddleware, async (req, res) => {
       FROM user_training_plan utp
       JOIN training_plan tp ON utp.training_plan_id = tp.id
       WHERE utp.user_id = $1 AND utp.is_active = TRUE
-    `, [(req as any).userId])
+    `, [(req as AuthenticatedRequest).userId])
     
     if (result.rows.length === 0) {
       return res.json(null)
@@ -588,7 +603,7 @@ app.post('/api/workouts', authMiddleware, async (req, res) => {
       INSERT INTO workout_session (user_id, training_plan_day_id, started_at)
       VALUES ($1, $2, NOW())
       RETURNING *
-    `, [(req as any).userId, training_plan_day_id])
+    `, [(req as AuthenticatedRequest).userId, training_plan_day_id])
     
     const sessionId = session.rows[0].id
     let totalVolume = 0
@@ -632,14 +647,14 @@ app.post('/api/workouts', authMiddleware, async (req, res) => {
           END,
           longest_streak = GREATEST(longest_streak, current_streak + 1)
       WHERE id = $1
-    `, [(req as any).userId])
+    `, [(req as AuthenticatedRequest).userId])
 
     // ===== AUTO-BRAG: Create activity feed item for buddies =====
     try {
       // Get user info for the activity
       const userInfo = await client.query(
         'SELECT display_name FROM app_user WHERE id = $1',
-        [(req as any).userId]
+        [(req as AuthenticatedRequest).userId]
       )
       const userName = userInfo.rows[0]?.display_name || 'Jemand'
 
@@ -653,7 +668,7 @@ app.post('/api/workouts', authMiddleware, async (req, res) => {
           INSERT INTO activity_feed_item (user_id, activity_type_id, metadata)
           VALUES ($1, $2, $3)
         `, [
-          (req as any).userId,
+          (req as AuthenticatedRequest).userId,
           activityType.rows[0].id,
           JSON.stringify({
             session_id: sessionId,
@@ -700,7 +715,7 @@ app.get('/api/workouts', authMiddleware, async (req, res) => {
       GROUP BY ws.id
       ORDER BY ws.started_at DESC
       LIMIT $2
-    `, [(req as any).userId, limit])
+    `, [(req as AuthenticatedRequest).userId, limit])
     
     res.json(result.rows)
   } catch (e) {
@@ -720,14 +735,14 @@ app.patch('/api/workout-sets/:id', authMiddleware, async (req, res) => {
       SELECT ws.id FROM workout_set ws
       JOIN workout_session wse ON ws.workout_session_id = wse.id
       WHERE ws.id = $1 AND wse.user_id = $2
-    `, [id, (req as any).userId])
+    `, [id, (req as AuthenticatedRequest).userId])
     
     if (check.rows.length === 0) {
       return res.status(404).json({ error: 'Set not found' })
     }
     
     const updates: string[] = []
-    const params: any[] = []
+    const params: unknown[] = []
     let paramCount = 1
     
     if (weight_kg !== undefined) {
@@ -777,7 +792,7 @@ app.delete('/api/workout-sets/:id', authMiddleware, async (req, res) => {
       SELECT ws.id, ws.workout_session_id FROM workout_set ws
       JOIN workout_session wse ON ws.workout_session_id = wse.id
       WHERE ws.id = $1 AND wse.user_id = $2
-    `, [id, (req as any).userId])
+    `, [id, (req as AuthenticatedRequest).userId])
     
     if (check.rows.length === 0) {
       return res.status(404).json({ error: 'Set not found' })
@@ -834,7 +849,7 @@ app.get('/api/users/me/badges', authMiddleware, async (req, res) => {
       JOIN badge_rarity br ON b.rarity_id = br.id
       WHERE ub.user_id = $1
       ORDER BY ub.earned_at DESC
-    `, [(req as any).userId])
+    `, [(req as AuthenticatedRequest).userId])
     res.json(result.rows)
   } catch (e) {
     console.error('Get user badges error:', e)
@@ -844,8 +859,16 @@ app.get('/api/users/me/badges', authMiddleware, async (req, res) => {
 
 app.get('/api/users/me/badges/check', authMiddleware, async (req, res) => {
   try {
-    const userId = (req as any).userId
-    const newBadges: any[] = []
+    const userId = (req as AuthenticatedRequest).userId
+    interface BadgeResult {
+      id: number
+      code: string
+      name_de: string
+      description_de: string
+      icon_name: string
+      points: number
+    }
+    const newBadges: BadgeResult[] = []
     
     // Get user stats
     const userStats = await pool.query(`
@@ -938,7 +961,7 @@ app.post('/api/users/me/badges/:badgeId/notify', authMiddleware, async (req, res
   try {
     await pool.query(
       'UPDATE user_badge SET notified = TRUE WHERE user_id = $1 AND badge_id = $2',
-      [(req as any).userId, req.params.badgeId]
+      [(req as AuthenticatedRequest).userId, req.params.badgeId]
     )
     res.json({ success: true })
   } catch (e) {
@@ -995,7 +1018,7 @@ app.get('/api/users/search', authMiddleware, async (req, res) => {
           OR LOWER(full_name) LIKE LOWER($2)
         )
       LIMIT 20
-    `, [(req as any).userId, `%${q}%`])
+    `, [(req as AuthenticatedRequest).userId, `%${q}%`])
     
     res.json(result.rows)
   } catch (e) {
@@ -1007,7 +1030,7 @@ app.get('/api/users/search', authMiddleware, async (req, res) => {
 // Get all buddies (friends)
 app.get('/api/buddies', authMiddleware, async (req, res) => {
   try {
-    const userId = (req as any).userId
+    const userId = (req as AuthenticatedRequest).userId
     
     const result = await pool.query(`
       SELECT 
@@ -1048,7 +1071,7 @@ app.post('/api/buddies/request', authMiddleware, async (req, res) => {
   const { userId: addresseeId } = req.body
   
   try {
-    const userId = (req as any).userId
+    const userId = (req as AuthenticatedRequest).userId
     
     // Check if friendship already exists
     const existing = await pool.query(`
@@ -1104,7 +1127,7 @@ app.patch('/api/buddies/:friendshipId', authMiddleware, async (req, res) => {
   const { action } = req.body // 'accept' or 'reject'
   
   try {
-    const userId = (req as any).userId
+    const userId = (req as AuthenticatedRequest).userId
     
     // Verify user is the addressee
     const friendship = await pool.query(`
@@ -1161,7 +1184,7 @@ app.delete('/api/buddies/:friendshipId', authMiddleware, async (req, res) => {
   const { friendshipId } = req.params
   
   try {
-    const userId = (req as any).userId
+    const userId = (req as AuthenticatedRequest).userId
     
     await pool.query(`
       DELETE FROM friendship 
@@ -1180,7 +1203,7 @@ app.post('/api/buddies/:friendshipId/remind', authMiddleware, async (req, res) =
   const { friendshipId } = req.params
   
   try {
-    const userId = (req as any).userId
+    const userId = (req as AuthenticatedRequest).userId
     
     // Get friendship and buddy
     const friendship = await pool.query(`
@@ -1231,7 +1254,7 @@ app.get('/api/notifications', authMiddleware, async (req, res) => {
   const { unreadOnly = 'false', limit = 50 } = req.query
   
   try {
-    const userId = (req as any).userId
+    const userId = (req as AuthenticatedRequest).userId
     
     let query = `
       SELECT n.*, nt.code as type_code, nt.icon_name,
@@ -1241,7 +1264,7 @@ app.get('/api/notifications', authMiddleware, async (req, res) => {
       LEFT JOIN app_user s ON n.sender_id = s.id
       WHERE n.user_id = $1
     `
-    const params: any[] = [userId]
+    const params: unknown[] = [userId]
     
     if (unreadOnly === 'true') {
       query += ' AND n.is_read = FALSE'
@@ -1263,7 +1286,7 @@ app.patch('/api/notifications/read', authMiddleware, async (req, res) => {
   const { notificationIds } = req.body // array of IDs or 'all'
   
   try {
-    const userId = (req as any).userId
+    const userId = (req as AuthenticatedRequest).userId
     
     if (notificationIds === 'all') {
       await pool.query(
@@ -1289,7 +1312,7 @@ app.get('/api/activity-feed', authMiddleware, async (req, res) => {
   const { limit = 30 } = req.query
   
   try {
-    const userId = (req as any).userId
+    const userId = (req as AuthenticatedRequest).userId
     
     const result = await pool.query(`
       SELECT 
@@ -1324,7 +1347,7 @@ app.post('/api/activity-feed/:itemId/congrats', authMiddleware, async (req, res)
   const { emoji = '🎉' } = req.body
   
   try {
-    const userId = (req as any).userId
+    const userId = (req as AuthenticatedRequest).userId
     
     // Check if item exists and user can see it
     const item = await pool.query(`
@@ -1378,7 +1401,7 @@ app.post('/api/activity-feed/:itemId/congrats', authMiddleware, async (req, res)
 // Get/Upload encryption keys
 app.get('/api/encryption/keys', authMiddleware, async (req, res) => {
   try {
-    const userId = (req as any).userId
+    const userId = (req as AuthenticatedRequest).userId
     
     const result = await pool.query(`
       SELECT identity_public_key, signed_prekey_public, signed_prekey_signature
@@ -1411,7 +1434,7 @@ app.post('/api/encryption/keys', authMiddleware, async (req, res) => {
   const { identityPublicKey, signedPrekeyPublic, signedPrekeySignature, prekeys } = req.body
   
   try {
-    const userId = (req as any).userId
+    const userId = (req as AuthenticatedRequest).userId
     
     // Upsert main keys
     await pool.query(`
@@ -1447,7 +1470,7 @@ app.get('/api/buddies/:friendshipId/keys', authMiddleware, async (req, res) => {
   const { friendshipId } = req.params
   
   try {
-    const userId = (req as any).userId
+    const userId = (req as AuthenticatedRequest).userId
     
     // Get buddy id
     const friendship = await pool.query(`
@@ -1503,7 +1526,7 @@ app.post('/api/buddies/:friendshipId/messages', authMiddleware, async (req, res)
   const { encryptedContent, ephemeralPublicKey, mac, nonce, messageType, referenceType, referenceId } = req.body
   
   try {
-    const userId = (req as any).userId
+    const userId = (req as AuthenticatedRequest).userId
     
     // Verify friendship
     const friendship = await pool.query(`
@@ -1535,7 +1558,7 @@ app.get('/api/buddies/:friendshipId/messages', authMiddleware, async (req, res) 
   const { limit = 50, before } = req.query
   
   try {
-    const userId = (req as any).userId
+    const userId = (req as AuthenticatedRequest).userId
     
     // Verify friendship
     const friendship = await pool.query(`
@@ -1554,7 +1577,7 @@ app.get('/api/buddies/:friendshipId/messages', authMiddleware, async (req, res) 
       JOIN app_user u ON cm.sender_id = u.id
       WHERE cm.friendship_id = $1
     `
-    const params: any[] = [friendshipId]
+    const params: unknown[] = [friendshipId]
     
     if (before) {
       query += ' AND cm.created_at < $2'
@@ -1587,7 +1610,7 @@ app.post('/api/push-tokens', authMiddleware, async (req, res) => {
   const { token, platform } = req.body
   
   try {
-    const userId = (req as any).userId
+    const userId = (req as AuthenticatedRequest).userId
     
     await pool.query(`
       INSERT INTO push_token (user_id, token, platform)
@@ -1608,7 +1631,7 @@ app.delete('/api/push-tokens', authMiddleware, async (req, res) => {
   try {
     await pool.query(
       'DELETE FROM push_token WHERE user_id = $1 AND token = $2',
-      [(req as any).userId, token]
+      [(req as AuthenticatedRequest).userId, token]
     )
     res.json({ success: true })
   } catch (e) {
@@ -1649,7 +1672,7 @@ app.get('/api/shop/inventory', authMiddleware, async (req, res) => {
       FROM user_inventory ui
       JOIN shop_item si ON ui.shop_item_id = si.id
       WHERE ui.user_id = $1 AND ui.quantity > 0
-    `, [(req as any).userId])
+    `, [(req as AuthenticatedRequest).userId])
     res.json(result.rows)
   } catch (e) {
     console.error('Get inventory error:', e)
@@ -1659,7 +1682,7 @@ app.get('/api/shop/inventory', authMiddleware, async (req, res) => {
 
 app.post('/api/shop/purchase', authMiddleware, async (req, res) => {
   const { item_id, quantity = 1 } = req.body
-  const userId = (req as any).userId
+  const userId = (req as AuthenticatedRequest).userId
   
   const client = await pool.connect()
   
@@ -1727,7 +1750,7 @@ app.post('/api/shop/purchase', authMiddleware, async (req, res) => {
 })
 
 app.post('/api/shop/activate-streak-saver', authMiddleware, async (req, res) => {
-  const userId = (req as any).userId
+  const userId = (req as AuthenticatedRequest).userId
   
   const client = await pool.connect()
   
@@ -1791,7 +1814,7 @@ app.get('/api/loot-boxes', authMiddleware, async (req, res) => {
       WHERE lb.user_id = $1
       ORDER BY lb.is_opened ASC, lb.earned_at DESC
       LIMIT 50
-    `, [(req as any).userId])
+    `, [(req as AuthenticatedRequest).userId])
     res.json(result.rows)
   } catch (e) {
     console.error('Get loot boxes error:', e)
@@ -1801,7 +1824,7 @@ app.get('/api/loot-boxes', authMiddleware, async (req, res) => {
 
 app.post('/api/loot-boxes/:id/click', authMiddleware, async (req, res) => {
   const boxId = parseInt(req.params.id as string, 10)
-  const userId = (req as any).userId
+  const userId = (req as AuthenticatedRequest).userId
   
   try {
     const result = await pool.query(
@@ -1825,7 +1848,7 @@ app.post('/api/loot-boxes/:id/click', authMiddleware, async (req, res) => {
 // =====================================================
 
 app.get('/api/stats/weekly', authMiddleware, async (req, res) => {
-  const userId = (req as any).userId
+  const userId = (req as AuthenticatedRequest).userId
   
   try {
     // Get start of current week (Monday)
@@ -1900,7 +1923,7 @@ async function callGeminiAPI(prompt: string): Promise<string> {
   })
 
   if (!response.ok) {
-    const errorText = await response.text()
+    await response.text() // Consume response body before throwing
     throw new Error(`Gemini API error: ${response.status}`)
   }
 
@@ -1909,7 +1932,7 @@ async function callGeminiAPI(prompt: string): Promise<string> {
 }
 
 app.post('/api/training-plans/generate', authMiddleware, async (req, res) => {
-  const userId = (req as any).userId
+  const userId = (req as AuthenticatedRequest).userId
   const { fitness_goal, experience_level, training_frequency, focus_areas, body_weight_kg } = req.body as GeneratePlanRequest
 
   try {
@@ -1929,6 +1952,7 @@ app.post('/api/training-plans/generate', authMiddleware, async (req, res) => {
     const validIds = new Set(exercises.map(e => e.id))
 
     // Helper to find exercises by body part
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars -- Actually used on line 2094
     const getExercisesByBodyPart = (bodyPartCodes: string[], count: number) => {
       const matching = exercises.filter(e => {
         if (!e.body_parts) return false

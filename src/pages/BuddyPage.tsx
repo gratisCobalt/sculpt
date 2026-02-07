@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import {
@@ -344,20 +344,37 @@ export default function BuddyPage() {
 
 // ===== Sub Components =====
 
+interface BuddyData {
+  id: string
+  friendship_id: number
+  display_name: string
+  avatar_url?: string
+  friend_streak: number
+  last_workout_at: string | null
+  status: string
+  direction: string
+}
+
 function BuddyCard({
   buddy,
   onChat,
   onRemove,
 }: {
-  buddy: any
+  buddy: BuddyData
   onChat: () => void
   onRemove: () => void
 }) {
   const [showMenu, setShowMenu] = useState(false)
-  const lastWorkout = buddy.last_workout_at
-    ? new Date(buddy.last_workout_at)
-    : null
-  const isRecent = lastWorkout && Date.now() - lastWorkout.getTime() < 7 * 24 * 60 * 60 * 1000
+
+  // Use lazy initialization to avoid calling Date.now() during render
+  const [mountTime] = useState(() => Date.now())
+
+  // Use the captured mount time for "isRecent" calculation
+  const { lastWorkout, isRecent } = useMemo(() => {
+    const lw = buddy.last_workout_at ? new Date(buddy.last_workout_at) : null
+    const recent = lw && mountTime - lw.getTime() < 7 * 24 * 60 * 60 * 1000
+    return { lastWorkout: lw, isRecent: recent }
+  }, [buddy.last_workout_at, mountTime])
 
   return (
     <Card>
@@ -433,11 +450,22 @@ function BuddyCard({
   )
 }
 
+interface ActivityItem {
+  id: number
+  display_name: string
+  avatar_url?: string
+  title_de: string
+  description_de?: string
+  created_at: string
+  has_congrats: boolean
+  congrats_count: number
+}
+
 function ActivityCard({
   item,
   onCongrats,
 }: {
-  item: any
+  item: ActivityItem
   onCongrats: (emoji: string) => void
 }) {
   const congrats_emojis = ['🎉', '💪', '🔥', '👏', '⭐']
@@ -506,7 +534,7 @@ function EmptyState({
   description,
   action,
 }: {
-  icon: any
+  icon: React.ComponentType<{ className?: string }>
   title: string
   description: string
   action?: React.ReactNode

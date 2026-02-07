@@ -20,6 +20,24 @@ interface BadgePopupProps {
   onClose: () => void
 }
 
+interface ConfettiItem {
+  left: number
+  delay: number
+  duration: number
+  color: string
+}
+
+const confettiColors = ['#FFD700', '#FF6B6B', '#4ECDC4', '#A855F7', '#3B82F6']
+
+// Pre-generate confetti data at module level (pure, happens once)
+const confettiData: ConfettiItem[] = Array.from({ length: 50 }, (_, i) => ({
+  // Use deterministic values based on index instead of Math.random()
+  left: ((i * 37) % 100),
+  delay: ((i * 13) % 200) / 100,
+  duration: 2 + ((i * 17) % 200) / 100,
+  color: confettiColors[i % 5],
+}))
+
 const rarityGradients: Record<string, string> = {
   common: 'from-slate-400 to-slate-600',
   rare: 'from-blue-400 to-blue-600',
@@ -40,18 +58,21 @@ export function BadgePopup({ badge, onClose }: BadgePopupProps) {
 
   useEffect(() => {
     if (badge) {
-      // Trigger entrance animation
-      setIsVisible(true)
-      setShowConfetti(true)
-      
+      // Use startTransition to avoid cascading render warnings
+      const timer = setTimeout(() => {
+        setIsVisible(true)
+        setShowConfetti(true)
+      }, 0)
+
       // Hide confetti after animation
       const confettiTimer = setTimeout(() => setShowConfetti(false), 3000)
-      
+
       return () => {
+        clearTimeout(timer)
         clearTimeout(confettiTimer)
       }
     } else {
-      setIsVisible(false)
+      queueMicrotask(() => setIsVisible(false))
     }
   }, [badge])
 
@@ -81,22 +102,20 @@ export function BadgePopup({ badge, onClose }: BadgePopupProps) {
       {/* Confetti Effect */}
       {showConfetti && (
         <div className="absolute inset-0 overflow-hidden pointer-events-none">
-          {[...Array(50)].map((_, i) => (
+          {confettiData.map((confetti, i) => (
             <div
               key={i}
               className="absolute animate-confetti"
               style={{
-                left: `${Math.random() * 100}%`,
-                animationDelay: `${Math.random() * 2}s`,
-                animationDuration: `${2 + Math.random() * 2}s`,
+                left: `${confetti.left}%`,
+                animationDelay: `${confetti.delay}s`,
+                animationDuration: `${confetti.duration}s`,
               }}
             >
               <Sparkles
                 className="w-4 h-4"
                 style={{
-                  color: ['#FFD700', '#FF6B6B', '#4ECDC4', '#A855F7', '#3B82F6'][
-                    Math.floor(Math.random() * 5)
-                  ],
+                  color: confetti.color,
                 }}
               />
             </div>
@@ -230,6 +249,6 @@ function getBadgeEmoji(iconName: string): string {
     'calendar': '📅',
     'clock': '⏰',
   }
-  
+
   return emojiMap[iconName] || '🏅'
 }

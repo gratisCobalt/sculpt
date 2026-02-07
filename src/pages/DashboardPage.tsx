@@ -54,7 +54,7 @@ export default function DashboardPage() {
     enabled: !!user,
   })
 
-  const unopenedBoxes = lootBoxes?.filter((b: any) => !b.is_opened)?.length || 0
+  const unopenedBoxes = lootBoxes?.filter((b) => !b.is_opened)?.length || 0
 
   // Fetch exercise progress for cards (last 30 days with category filter)
   const { data: exerciseProgress, isLoading: progressLoading } = useQuery({
@@ -104,7 +104,7 @@ export default function DashboardPage() {
                 </span>
               </Button>
             )}
-            
+
             {/* Hanteln */}
             <div
               className="flex items-center gap-2 px-3 py-2 rounded-xl bg-amber-500/20 border border-amber-500/30 cursor-pointer"
@@ -113,7 +113,7 @@ export default function DashboardPage() {
               <span className="text-amber-400">🏋️</span>
               <span className="font-semibold text-amber-400">{user?.hantel_coins || 0}</span>
             </div>
-            
+
             <Button variant="ghost" size="icon" onClick={() => navigate('/shop')}>
               <ShoppingBag className="w-5 h-5" />
             </Button>

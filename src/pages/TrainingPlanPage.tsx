@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import {
@@ -139,7 +139,7 @@ function ExerciseModal({ isOpen, onClose, dayId, exercise, onSuccess }: Exercise
               </div>
               {searchResults.length > 0 && (
                 <div className="mt-2 max-h-48 overflow-y-auto rounded-xl border border-[hsl(var(--border))]">
-                  {searchResults.map((ex: any) => (
+                  {searchResults.map((ex: { id: number; name: string; name_de?: string }) => (
                     <button
                       key={ex.id}
                       onClick={() => setSelectedExercise({ id: ex.id, name: ex.name_de || ex.name })}
@@ -319,7 +319,7 @@ export default function TrainingPlanPage() {
   const { user } = useAuth()
   const [selectedPlanId, setSelectedPlanId] = useState<number | null>(null)
   const [selectedDayId, setSelectedDayId] = useState<number | null>(null)
-  
+
   // Modal states
   const [isExerciseModalOpen, setIsExerciseModalOpen] = useState(false)
   const [editingExercise, setEditingExercise] = useState<TrainingPlanExerciseWithMachine | null>(null)
@@ -344,44 +344,36 @@ export default function TrainingPlanPage() {
     enabled: !!user?.id,
   })
 
-  // Set initial selected plan
-  useEffect(() => {
-    if (plans && plans.length > 0 && !selectedPlanId) {
-      setSelectedPlanId(plans[0].id)
-    }
-  }, [plans, selectedPlanId])
+  // Derive effective plan ID - use selected or first available
+  const effectivePlanId = selectedPlanId ?? (plans && plans.length > 0 ? plans[0].id : null)
 
   // Fetch days for selected plan
   const { data: days, isLoading: daysLoading } = useQuery({
-    queryKey: ['trainingPlanDays', selectedPlanId],
+    queryKey: ['trainingPlanDays', effectivePlanId],
     queryFn: async () => {
-      if (!selectedPlanId || !supabase) return []
+      if (!effectivePlanId || !supabase) return []
 
       const { data, error } = await supabase
         .from('training_plan_day')
         .select('*')
-        .eq('training_plan_id', selectedPlanId)
+        .eq('training_plan_id', effectivePlanId)
         .eq('is_active', true)
         .order('day_number', { ascending: true })
 
       if (error) throw error
       return data as TrainingPlanDay[]
     },
-    enabled: !!selectedPlanId,
+    enabled: !!effectivePlanId,
   })
 
-  // Set initial selected day
-  useEffect(() => {
-    if (days && days.length > 0 && !selectedDayId) {
-      setSelectedDayId(days[0].id)
-    }
-  }, [days, selectedDayId])
+  // Derive effective day ID - use selected or first available
+  const effectiveDayId = selectedDayId ?? (days && days.length > 0 ? days[0].id : null)
 
   // Fetch exercises for selected day
   const { data: exercises, isLoading: exercisesLoading } = useQuery({
-    queryKey: ['trainingPlanExercises', selectedDayId],
+    queryKey: ['trainingPlanExercises', effectiveDayId],
     queryFn: async () => {
-      if (!selectedDayId || !supabase) return []
+      if (!effectiveDayId || !supabase) return []
 
       const { data, error } = await supabase
         .from('training_plan_exercise')
@@ -392,13 +384,13 @@ export default function TrainingPlanPage() {
             name
           )
         `)
-        .eq('training_plan_day_id', selectedDayId)
+        .eq('training_plan_day_id', effectiveDayId)
         .order('sequence', { ascending: true })
 
       if (error) throw error
       return data as TrainingPlanExerciseWithMachine[]
     },
-    enabled: !!selectedDayId,
+    enabled: !!effectiveDayId,
   })
 
   // Delete exercise mutation
@@ -413,11 +405,11 @@ export default function TrainingPlanPage() {
       if (error) throw error
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['trainingPlanExercises', selectedDayId] })
+      queryClient.invalidateQueries({ queryKey: ['trainingPlanExercises', effectiveDayId] })
     },
   })
 
-  const selectedPlan = plans?.find((p) => p.id === selectedPlanId)
+  const selectedPlan = plans?.find((p) => p.id === effectivePlanId)
   const isLoading = plansLoading || daysLoading || exercisesLoading
 
   if (plansLoading) {
@@ -454,7 +446,7 @@ export default function TrainingPlanPage() {
         {plans.length > 1 && (
           <div className="relative mb-4">
             <select
-              value={selectedPlanId || ''}
+              value={effectivePlanId || ''}
               onChange={(e) => setSelectedPlanId(Number(e.target.value))}
               className="w-full h-12 px-4 pr-10 rounded-xl bg-[hsl(var(--surface-soft))] border border-[hsl(var(--border))] text-[hsl(var(--foreground))] appearance-none cursor-pointer"
             >
@@ -476,42 +468,44 @@ export default function TrainingPlanPage() {
       </div>
 
       {/* Day Tabs */}
-      {days && days.length > 0 && (
-        <div className="px-6 mb-4">
-          <div className="flex gap-2 overflow-x-auto no-scrollbar pb-2">
-            {days.map((day) => (
+      {
+        days && days.length > 0 && (
+          <div className="px-6 mb-4">
+            <div className="flex gap-2 overflow-x-auto no-scrollbar pb-2">
+              {days.map((day) => (
+                <button
+                  key={day.id}
+                  onClick={() => setSelectedDayId(day.id)}
+                  className={cn(
+                    'px-4 py-3 rounded-xl whitespace-nowrap transition-all duration-200 flex flex-col items-start',
+                    effectiveDayId === day.id
+                      ? 'gradient-primary text-gray-900'
+                      : 'glass glass-hover'
+                  )}
+                >
+                  <span className="text-xs opacity-80">Tag {day.day_number}</span>
+                  <span className="font-semibold">{day.name}</span>
+                </button>
+              ))}
+              {/* Add Day Button */}
               <button
-                key={day.id}
-                onClick={() => setSelectedDayId(day.id)}
-                className={cn(
-                  'px-4 py-3 rounded-xl whitespace-nowrap transition-all duration-200 flex flex-col items-start',
-                  selectedDayId === day.id
-                    ? 'gradient-primary text-gray-900'
-                    : 'glass glass-hover'
-                )}
+                onClick={() => setIsAddDayModalOpen(true)}
+                className="px-4 py-3 rounded-xl whitespace-nowrap transition-all duration-200 flex items-center justify-center glass glass-hover min-w-[60px]"
               >
-                <span className="text-xs opacity-80">Tag {day.day_number}</span>
-                <span className="font-semibold">{day.name}</span>
+                <Plus className="w-5 h-5" />
               </button>
-            ))}
-            {/* Add Day Button */}
-            <button
-              onClick={() => setIsAddDayModalOpen(true)}
-              className="px-4 py-3 rounded-xl whitespace-nowrap transition-all duration-200 flex items-center justify-center glass glass-hover min-w-[60px]"
-            >
-              <Plus className="w-5 h-5" />
-            </button>
+            </div>
           </div>
-        </div>
-      )}
+        )
+      }
 
       {/* Start Training Button */}
       <div className="px-6 mb-6">
         <Button
           size="lg"
           className="w-full"
-          onClick={() => navigate(`/guided-training?dayId=${selectedDayId}`)}
-          disabled={!selectedDayId || !exercises?.length}
+          onClick={() => navigate(`/guided-training?dayId=${effectiveDayId}`)}
+          disabled={!effectiveDayId || !exercises?.length}
         >
           <Play className="w-5 h-5 mr-2" />
           Training starten
@@ -604,7 +598,7 @@ export default function TrainingPlanPage() {
             setEditingExercise(null)
             setIsExerciseModalOpen(true)
           }}
-          disabled={!selectedDayId}
+          disabled={!effectiveDayId}
         >
           <Plus className="w-5 h-5 mr-2" />
           Übung hinzufügen
@@ -618,22 +612,22 @@ export default function TrainingPlanPage() {
           setIsExerciseModalOpen(false)
           setEditingExercise(null)
         }}
-        dayId={selectedDayId || 0}
+        dayId={effectiveDayId || 0}
         exercise={editingExercise}
         onSuccess={() => {
-          queryClient.invalidateQueries({ queryKey: ['trainingPlanExercises', selectedDayId] })
+          queryClient.invalidateQueries({ queryKey: ['trainingPlanExercises', effectiveDayId] })
         }}
       />
 
       <AddDayModal
         isOpen={isAddDayModalOpen}
         onClose={() => setIsAddDayModalOpen(false)}
-        planId={selectedPlanId || 0}
+        planId={effectivePlanId || 0}
         existingDaysCount={days?.length || 0}
         onSuccess={() => {
-          queryClient.invalidateQueries({ queryKey: ['trainingPlanDays', selectedPlanId] })
+          queryClient.invalidateQueries({ queryKey: ['trainingPlanDays', effectivePlanId] })
         }}
       />
-    </div>
+    </div >
   )
 }

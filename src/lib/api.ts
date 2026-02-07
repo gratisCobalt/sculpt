@@ -1,5 +1,198 @@
 const API_BASE = import.meta.env.VITE_API_BASE_URL || 'http://localhost:3000'
 
+// =====================================================
+// API Response Types
+// =====================================================
+
+export interface ApiUser {
+  id: string
+  email: string
+  display_name: string
+  avatar_url?: string
+  gender_id?: number
+  body_weight_kg?: number
+  training_frequency_per_week?: number
+  fitness_goal?: string
+  experience_level?: string
+  onboarding_completed: boolean
+  hantel_coins: number
+  streak?: number
+  created_at: string
+}
+
+export interface ExerciseProgress {
+  exercise_id: number
+  exercise_name: string
+  body_part_name: string
+  previous_max_weight: number
+  current_max_weight: number
+  progress_percentage: number
+}
+
+export interface Exercise {
+  id: number
+  name: string
+  name_de?: string
+  description?: string
+  body_part_id: number
+  body_part_name?: string
+  equipment?: string
+  instructions?: string
+  image_url?: string
+}
+
+export interface TrainingPlan {
+  id: number
+  user_id: string
+  name: string
+  description?: string
+  is_active: boolean
+  created_at: string
+}
+
+export interface Workout {
+  id: number
+  user_id: string
+  training_plan_day_id?: number
+  started_at: string
+  completed_at?: string
+  total_volume_kg: number
+  exercises_count: number
+}
+
+export interface WorkoutSet {
+  id: number
+  workout_id: number
+  exercise_id: number
+  set_number: number
+  weight_kg: number
+  reps: number
+  is_warmup: boolean
+  rpe?: number
+}
+
+export interface Badge {
+  id: number
+  code: string
+  name_de: string
+  description_de: string
+  icon_name: string
+  points: number
+  rarity_code: string
+  rarity_name: string
+  rarity_color: string
+}
+
+export interface UserBadge extends Badge {
+  earned_at: string
+  notified: boolean
+}
+
+export interface BodyPart {
+  id: number
+  name: string
+  name_de?: string
+  icon?: string
+}
+
+export interface Gender {
+  id: number
+  name: string
+  name_de?: string
+}
+
+export interface Buddy {
+  id: string
+  friendship_id: number
+  display_name: string
+  avatar_url?: string
+  friend_streak: number
+  last_workout_at?: string
+  status: string
+  direction: string
+}
+
+export interface UserSearchResult {
+  id: string
+  display_name: string
+  avatar_url?: string
+}
+
+export interface Notification {
+  id: number
+  type: string
+  title: string
+  body?: string
+  data?: Record<string, unknown>
+  read: boolean
+  created_at: string
+}
+
+export interface ActivityFeedItem {
+  id: number
+  user_id: string
+  display_name: string
+  avatar_url?: string
+  activity_type: string
+  title_de: string
+  description_de?: string
+  created_at: string
+  has_congrats: boolean
+  congrats_count: number
+}
+
+export interface EncryptionKeys {
+  identityPublicKey: string
+  signedPrekeyPublic: string
+  signedPrekeySignature: string
+}
+
+export interface BuddyKeys {
+  identityPublicKey: string
+  signedPrekeyPublic: string
+  ephemeralPublicKey?: string
+}
+
+export interface ChatMessage {
+  id: number
+  friendship_id: number
+  sender_id: string
+  encrypted_content: string
+  ephemeral_public_key: string
+  mac: string
+  nonce: string
+  created_at: string
+}
+
+export interface ShopItem {
+  id: number
+  code: string
+  name_de: string
+  description_de: string
+  price_coins: number
+  category_code: string
+  rarity_code?: string
+  icon_name: string
+  max_stack?: number
+}
+
+export interface InventoryItem {
+  code: string
+  quantity: number
+  item_id: number
+  name_de: string
+}
+
+export interface LootBox {
+  id: number
+  user_id: string
+  rarity_id: number
+  rarity_code: string
+  clicks_remaining: number
+  is_opened: boolean
+  created_at: string
+}
+
 class ApiClient {
   private token: string | null = null
 
@@ -48,7 +241,7 @@ class ApiClient {
   // =====================================================
 
   async login(email: string, password: string) {
-    const data = await this.request<{ user: any; token: string }>('/api/auth/login', {
+    const data = await this.request<{ user: ApiUser; token: string }>('/api/auth/login', {
       method: 'POST',
       body: JSON.stringify({ email, password }),
     })
@@ -57,7 +250,7 @@ class ApiClient {
   }
 
   async register(email: string, password: string, displayName: string) {
-    const data = await this.request<{ user: any; token: string }>('/api/auth/register', {
+    const data = await this.request<{ user: ApiUser; token: string }>('/api/auth/register', {
       method: 'POST',
       body: JSON.stringify({ email, password, displayName }),
     })
@@ -66,7 +259,7 @@ class ApiClient {
   }
 
   async getMe() {
-    return this.request<any>('/api/auth/me')
+    return this.request<ApiUser>('/api/auth/me')
   }
 
   logout() {
@@ -86,7 +279,7 @@ class ApiClient {
     experience_level?: string
     onboarding_completed?: boolean
   }) {
-    return this.request<any>('/api/users/me', {
+    return this.request<ApiUser>('/api/users/me', {
       method: 'PATCH',
       body: JSON.stringify(data),
     })
@@ -119,7 +312,7 @@ class ApiClient {
   async getExerciseProgress(period: number = 7, bodyPart?: string) {
     const params = new URLSearchParams({ period: period.toString() })
     if (bodyPart) params.append('bodyPart', bodyPart)
-    return this.request<any[]>(`/api/dashboard/exercise-progress?${params}`)
+    return this.request<ExerciseProgress[]>(`/api/dashboard/exercise-progress?${params}`)
   }
 
   // =====================================================
@@ -131,11 +324,11 @@ class ApiClient {
     if (options.search) params.append('search', options.search)
     if (options.bodyPart) params.append('bodyPart', options.bodyPart)
     if (options.limit) params.append('limit', options.limit.toString())
-    return this.request<any[]>(`/api/exercises?${params}`)
+    return this.request<Exercise[]>(`/api/exercises?${params}`)
   }
 
   async getExercise(id: number) {
-    return this.request<any>(`/api/exercises/${id}`)
+    return this.request<Exercise>(`/api/exercises/${id}`)
   }
 
   // =====================================================
@@ -143,15 +336,15 @@ class ApiClient {
   // =====================================================
 
   async getTrainingPlans() {
-    return this.request<any[]>('/api/training-plans')
+    return this.request<TrainingPlan[]>('/api/training-plans')
   }
 
   async getTrainingPlan(id: number) {
-    return this.request<any>(`/api/training-plans/${id}`)
+    return this.request<TrainingPlan>(`/api/training-plans/${id}`)
   }
 
   async getUserTrainingPlan() {
-    return this.request<any>('/api/users/me/training-plan')
+    return this.request<TrainingPlan>('/api/users/me/training-plan')
   }
 
   async generateTrainingPlan(data: {
@@ -187,14 +380,14 @@ class ApiClient {
       rpe?: number
     }[]
   }) {
-    return this.request<any>('/api/workouts', {
+    return this.request<Workout>('/api/workouts', {
       method: 'POST',
       body: JSON.stringify(data),
     })
   }
 
   async getWorkouts(limit: number = 20) {
-    return this.request<any[]>(`/api/workouts?limit=${limit}`)
+    return this.request<Workout[]>(`/api/workouts?limit=${limit}`)
   }
 
   // =====================================================
@@ -202,7 +395,7 @@ class ApiClient {
   // =====================================================
 
   async updateWorkoutSet(setId: number, data: { weight_kg?: number; reps?: number }) {
-    return this.request<any>(`/api/workout-sets/${setId}`, {
+    return this.request<WorkoutSet>(`/api/workout-sets/${setId}`, {
       method: 'PATCH',
       body: JSON.stringify(data),
     })
@@ -219,15 +412,15 @@ class ApiClient {
   // =====================================================
 
   async getAllBadges() {
-    return this.request<any[]>('/api/badges')
+    return this.request<Badge[]>('/api/badges')
   }
 
   async getUserBadges() {
-    return this.request<any[]>('/api/users/me/badges')
+    return this.request<UserBadge[]>('/api/users/me/badges')
   }
 
   async checkForNewBadges() {
-    return this.request<{ newBadges: any[] }>('/api/users/me/badges/check')
+    return this.request<{ newBadges: Badge[] }>('/api/users/me/badges/check')
   }
 
   async markBadgeNotified(badgeId: number) {
@@ -241,11 +434,11 @@ class ApiClient {
   // =====================================================
 
   async getBodyParts() {
-    return this.request<any[]>('/api/body-parts')
+    return this.request<BodyPart[]>('/api/body-parts')
   }
 
   async getGenders() {
-    return this.request<any[]>('/api/genders')
+    return this.request<Gender[]>('/api/genders')
   }
 
   // =====================================================
@@ -253,15 +446,15 @@ class ApiClient {
   // =====================================================
 
   async searchUsers(query: string) {
-    return this.request<any[]>(`/api/users/search?q=${encodeURIComponent(query)}`)
+    return this.request<UserSearchResult[]>(`/api/users/search?q=${encodeURIComponent(query)}`)
   }
 
   async getBuddies() {
-    return this.request<any[]>('/api/buddies')
+    return this.request<Buddy[]>('/api/buddies')
   }
 
   async sendFriendRequest(userId: string) {
-    return this.request<any>('/api/buddies/request', {
+    return this.request<{ success: boolean; friendship_id: number }>('/api/buddies/request', {
       method: 'POST',
       body: JSON.stringify({ userId }),
     })
@@ -291,7 +484,7 @@ class ApiClient {
   // =====================================================
 
   async getNotifications(unreadOnly = false, limit = 50) {
-    return this.request<any[]>(`/api/notifications?unreadOnly=${unreadOnly}&limit=${limit}`)
+    return this.request<Notification[]>(`/api/notifications?unreadOnly=${unreadOnly}&limit=${limit}`)
   }
 
   async markNotificationsRead(notificationIds: number[] | 'all') {
@@ -306,7 +499,7 @@ class ApiClient {
   // =====================================================
 
   async getActivityFeed(limit = 30) {
-    return this.request<any[]>(`/api/activity-feed?limit=${limit}`)
+    return this.request<ActivityFeedItem[]>(`/api/activity-feed?limit=${limit}`)
   }
 
   async sendCongrats(itemId: number, emoji = '🎉') {
@@ -321,7 +514,7 @@ class ApiClient {
   // =====================================================
 
   async getEncryptionKeys() {
-    return this.request<any>('/api/encryption/keys')
+    return this.request<EncryptionKeys>('/api/encryption/keys')
   }
 
   async uploadEncryptionKeys(keys: {
@@ -337,7 +530,7 @@ class ApiClient {
   }
 
   async getBuddyKeys(friendshipId: number) {
-    return this.request<any>(`/api/buddies/${friendshipId}/keys`)
+    return this.request<BuddyKeys>(`/api/buddies/${friendshipId}/keys`)
   }
 
   async sendMessage(friendshipId: number, message: {
@@ -349,7 +542,7 @@ class ApiClient {
     referenceType?: string
     referenceId?: number
   }) {
-    return this.request<any>(`/api/buddies/${friendshipId}/messages`, {
+    return this.request<ChatMessage>(`/api/buddies/${friendshipId}/messages`, {
       method: 'POST',
       body: JSON.stringify(message),
     })
@@ -358,7 +551,7 @@ class ApiClient {
   async getMessages(friendshipId: number, limit = 50, before?: string) {
     let url = `/api/buddies/${friendshipId}/messages?limit=${limit}`
     if (before) url += `&before=${encodeURIComponent(before)}`
-    return this.request<any[]>(url)
+    return this.request<ChatMessage[]>(url)
   }
 
   // =====================================================
@@ -388,11 +581,11 @@ class ApiClient {
   // =====================================================
 
   async getShopItems() {
-    return this.request<any[]>('/api/shop/items')
+    return this.request<ShopItem[]>('/api/shop/items')
   }
 
   async getInventory() {
-    return this.request<any[]>('/api/shop/inventory')
+    return this.request<InventoryItem[]>('/api/shop/inventory')
   }
 
   async purchaseItem(itemId: number, quantity = 1) {
@@ -409,7 +602,7 @@ class ApiClient {
   }
 
   async getLootBoxes() {
-    return this.request<any[]>('/api/loot-boxes')
+    return this.request<LootBox[]>('/api/loot-boxes')
   }
 
   async clickLootBox(boxId: number) {

@@ -40,6 +40,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
+    // Helper to defer state updates
+    const finishLoading = () => queueMicrotask(() => setLoading(false))
+
     // Check for existing token on mount
     const token = api.getToken()
     if (token) {
@@ -51,11 +54,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           console.error('Failed to restore session:', error)
           api.logout()
         })
-        .finally(() => {
-          setLoading(false)
-        })
+        .finally(finishLoading)
     } else {
-      setLoading(false)
+      finishLoading()
     }
   }, [])
 
@@ -83,9 +84,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   }
 
-  const updateProfile = async (data: Partial<User>) => {
+  const updateProfile = async (data: Partial<User> & { birthdate?: string | null }) => {
     try {
-      const updatedUser = await api.updateUser(data as any)
+      const updatedUser = await api.updateUser(data)
       setUser(updatedUser)
     } catch (error) {
       console.error('Failed to update profile:', error)

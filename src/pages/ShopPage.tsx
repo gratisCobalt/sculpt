@@ -64,12 +64,29 @@ export default function ShopPage() {
     },
   })
 
+  interface InventoryItem {
+    code: string
+    quantity: number
+  }
+
   const getInventoryCount = (itemCode: string) => {
-    const item = inventory.find((i: any) => i.code === itemCode)
+    const item = (inventory as InventoryItem[]).find((i) => i.code === itemCode)
     return item?.quantity || 0
   }
 
-  const groupedItems = shopItems.reduce((acc: Record<string, any[]>, item: any) => {
+  interface ShopItem {
+    id: number
+    code: string
+    name_de: string
+    description_de: string
+    price_coins: number
+    category_code: string
+    rarity_code?: string
+    icon_name: string
+    max_stack?: number
+  }
+
+  const groupedItems = shopItems.reduce((acc: Record<string, ShopItem[]>, item: ShopItem) => {
     const cat = item.category_code || 'other'
     if (!acc[cat]) acc[cat] = []
     acc[cat].push(item)
@@ -112,7 +129,7 @@ export default function ShopPage() {
                   <h2 className="font-semibold">{categoryNames[category] || category}</h2>
                 </div>
                 <div className="space-y-3">
-                  {items.map((item: any) => {
+                  {items.map((item: ShopItem) => {
                     const ItemIcon = itemIcons[item.icon_name] || Gift
                     const owned = getInventoryCount(item.code)
                     const canAfford = (user?.hantel_coins || 0) >= item.price_coins
@@ -154,8 +171,8 @@ export default function ShopPage() {
                                   )}
                                 >
                                   {item.rarity_code === 'common' ? 'Gewöhnlich' :
-                                   item.rarity_code === 'rare' ? 'Selten' :
-                                   item.rarity_code === 'epic' ? 'Episch' : 'Legendär'}
+                                    item.rarity_code === 'rare' ? 'Selten' :
+                                      item.rarity_code === 'epic' ? 'Episch' : 'Legendär'}
                                 </span>
                               )}
                               <p className="text-sm text-[hsl(var(--muted-foreground))] line-clamp-2 mt-1">
