@@ -1,11 +1,21 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { Dumbbell } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { useAuth } from '@/contexts/AuthContext'
 
+const API_BASE = import.meta.env.VITE_API_BASE_URL || 'http://localhost:3000'
+
 export default function LoginPage() {
   const { signInWithEmail } = useAuth()
   const [devLoading, setDevLoading] = useState(false)
+  const [isDevDb, setIsDevDb] = useState(false)
+
+  useEffect(() => {
+    fetch(`${API_BASE}/api/env`)
+      .then(res => res.json())
+      .then(data => setIsDevDb(data.isDevDb))
+      .catch(() => setIsDevDb(false))
+  }, [])
 
   const handleDevLogin = async () => {
     setDevLoading(true)
@@ -40,23 +50,21 @@ export default function LoginPage() {
         Willkommen zurück
       </p>
 
-      {/* Dev Login Button */}
-      <div className="w-full max-w-xs space-y-4 animate-fade-in" style={{ animationDelay: '100ms' }}>
-        <Button
-          variant="glass"
-          size="lg"
-          className="w-full"
-          onClick={handleDevLogin}
-          disabled={devLoading}
-        >
-          <Dumbbell className="w-5 h-5 mr-2" />
-          {devLoading ? 'Anmelden...' : 'Dev Login (Test User)'}
-        </Button>
-
-        <p className="text-xs text-center text-[hsl(var(--muted-foreground))]">
-          Lokale PostgreSQL Entwicklungsumgebung
-        </p>
-      </div>
+      {/* Dev Login Button - only shown when connected to dev database */}
+      {isDevDb && (
+        <div className="w-full max-w-xs space-y-4 animate-fade-in" style={{ animationDelay: '100ms' }}>
+          <Button
+            variant="glass"
+            size="lg"
+            className="w-full"
+            onClick={handleDevLogin}
+            disabled={devLoading}
+          >
+            <Dumbbell className="w-5 h-5 mr-2" />
+            {devLoading ? 'Anmelden...' : 'Dev Login (Test User)'}
+          </Button>
+        </div>
+      )}
     </div>
   )
 }
