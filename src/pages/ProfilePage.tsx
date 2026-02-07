@@ -1,3 +1,4 @@
+import { useState, useEffect, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import {
@@ -12,7 +13,10 @@ import {
   Bell,
   BellOff,
   Loader2,
+  Link2,
+  Unlink,
 } from 'lucide-react'
+import { FcGoogle } from 'react-icons/fc'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
 import { useAuth } from '@/contexts/AuthContext'
@@ -21,6 +25,25 @@ import { cn } from '@/lib/utils'
 import { usePushNotifications } from '@/hooks/usePushNotifications'
 
 const BUILD_NUMBER = '1.0.0'
+const GOOGLE_CLIENT_ID = import.meta.env.VITE_GOOGLE_CLIENT_ID || ''
+
+// Google Identity Services types
+declare global {
+  interface Window {
+    google?: {
+      accounts: {
+        id: {
+          initialize: (config: {
+            client_id: string
+            callback: (response: { credential: string }) => void
+            auto_select?: boolean
+          }) => void
+          prompt: () => void
+        }
+      }
+    }
+  }
+}
 
 const rarityColors: Record<string, string> = {
   common: 'bg-slate-500/20 border-slate-500/30',
@@ -55,7 +78,10 @@ function getBadgeEmoji(iconName: string): string {
 
 export default function ProfilePage() {
   const navigate = useNavigate()
-  const { user, signOut } = useAuth()
+  const { user, signOut, linkGoogleAccount, unlinkGoogleAccount } = useAuth()
+  const [googleLinking, setGoogleLinking] = useState(false)
+  const [googleUnlinking, setGoogleUnlinking] = useState(false)
+  const [googleError, setGoogleError] = useState<string | null>(null)
   const {
     isSupported: pushSupported,
     isSubscribed: pushSubscribed,
@@ -63,6 +89,47 @@ export default function ProfilePage() {
     subscribe: subscribePush,
     unsubscribe: unsubscribePush,
   } = usePushNotifications()
+
+  // Handle Google credential for linking
+  const handleGoogleLinkCallback = useCallback(async (response: { credential: string }) => {
+    setGoogleLinking(true)
+    setGoogleError(null)
+    try {
+      await linkGoogleAccount(response.credential)
+    } catch (err) {
+      setGoogleError(err instanceof Error ? err.message : 'Verknüpfung fehlgeschlagen')
+    } finally {
+      setGoogleLinking(false)
+    }
+  }, [linkGoogleAccount])
+
+  // Initialize Google for linking
+  useEffect(() => {
+    if (!GOOGLE_CLIENT_ID || !window.google?.accounts?.id) return
+
+    window.google.accounts.id.initialize({
+      client_id: GOOGLE_CLIENT_ID,
+      callback: handleGoogleLinkCallback,
+    })
+  }, [handleGoogleLinkCallback])
+
+  const handleLinkGoogle = () => {
+    if (window.google?.accounts?.id) {
+      window.google.accounts.id.prompt()
+    }
+  }
+
+  const handleUnlinkGoogle = async () => {
+    setGoogleUnlinking(true)
+    setGoogleError(null)
+    try {
+      await unlinkGoogleAccount()
+    } catch (err) {
+      setGoogleError(err instanceof Error ? err.message : 'Entfernen fehlgeschlagen')
+    } finally {
+      setGoogleUnlinking(false)
+    }
+  }
 
   // Fetch user badges
   const { data: userBadges } = useQuery({

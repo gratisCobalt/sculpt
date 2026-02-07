@@ -1,20 +1,135 @@
-import { useState } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { Dumbbell } from 'lucide-react'
+import { FcGoogle } from 'react-icons/fc'
 import { Button } from '@/components/ui/button'
 import { useAuth } from '@/contexts/AuthContext'
 
+// Google Identity Services types
+declare global {
+  interface Window {
+    google?: {
+      accounts: {
+        id: {
+          initialize: (config: {
+            client_id: string
+            callback: (response: { credential: string }) => void
+            auto_select?: boolean
+          }) => void
+          renderButton: (
+            element: HTMLElement,
+            config: {
+              theme?: 'outline' | 'filled_blue' | 'filled_black'
+              size?: 'large' | 'medium' | 'small'
+              type?: 'standard' | 'icon'
+              text?: 'signin_with' | 'signup_with' | 'continue_with' | 'signin'
+              shape?: 'rectangular' | 'pill' | 'circle' | 'square'
+              logo_alignment?: 'left' | 'center'
+              width?: number
+            }
+          ) => void
+          prompt: () => void
+        }
+      }
+    }
+  }
+}
+
+// Google Client ID from environment or hardcoded for dev
+const GOOGLE_CLIENT_ID = import.meta.env.VITE_GOOGLE_CLIENT_ID || ''
+
 export default function LoginPage() {
-  const { signInWithEmail } = useAuth()
+  const { signInWithEmail, signInWithGoogle } = useAuth()
   const [devLoading, setDevLoading] = useState(false)
+  const [googleLoading, setGoogleLoading] = useState(false)
+  const [googleReady, setGoogleReady] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+
+  // Handle Google credential response
+  const handleGoogleCallback = useCallback(async (response: { credential: string }) => {
+    setGoogleLoading(true)
+    setError(null)
+    try {
+      await signInWithGoogle(response.credential)
+      // Navigation is handled by App.tsx based on user state
+    } catch (err) {
+      console.error('Google sign-in error:', err)
+      setError(err instanceof Error ? err.message : 'Google-Anmeldung fehlgeschlagen')
+    } finally {
+      setGoogleLoading(false)
+    }
+  }, [signInWithGoogle])
+
+  // Load Google Identity Services script
+  useEffect(() => {
+    if (!GOOGLE_CLIENT_ID) {
+      console.warn('GOOGLE_CLIENT_ID not configured')
+      return
+    }
+
+    // Check if script is already loaded
+    if (window.google?.accounts?.id) {
+      window.google.accounts.id.initialize({
+        client_id: GOOGLE_CLIENT_ID,
+        callback: handleGoogleCallback,
+      })
+      setGoogleReady(true)
+      return
+    }
+
+    // Load Google Identity Services script
+    const script = document.createElement('script')
+    script.src = 'https://accounts.google.com/gsi/client'
+    script.async = true
+    script.defer = true
+    script.onload = () => {
+      if (window.google?.accounts?.id) {
+        window.google.accounts.id.initialize({
+          client_id: GOOGLE_CLIENT_ID,
+          callback: handleGoogleCallback,
+        })
+        setGoogleReady(true)
+      }
+    }
+    document.body.appendChild(script)
+
+    return () => {
+      // Cleanup script on unmount if needed
+    }
+  }, [handleGoogleCallback])
+
+  // Render Google button when ready
+  useEffect(() => {
+    if (googleReady && window.google?.accounts?.id) {
+      const buttonContainer = document.getElementById('google-signin-button')
+      if (buttonContainer) {
+        window.google.accounts.id.renderButton(buttonContainer, {
+          theme: 'filled_black',
+          size: 'large',
+          type: 'standard',
+          text: 'continue_with',
+          shape: 'pill',
+          width: 280,
+        })
+      }
+    }
+  }, [googleReady])
 
   const handleDevLogin = async () => {
     setDevLoading(true)
+    setError(null)
     try {
       await signInWithEmail('test@sculpt-app.de', 'TestUser123!')
-    } catch (error) {
-      console.error('Dev login error:', error)
+    } catch (err) {
+      console.error('Dev login error:', err)
+      setError(err instanceof Error ? err.message : 'Anmeldung fehlgeschlagen')
     } finally {
       setDevLoading(false)
+    }
+  }
+
+  const handleGoogleClick = () => {
+    if (window.google?.accounts?.id) {
+      window.google.accounts.id.prompt()
     }
   }
 
@@ -40,8 +155,52 @@ export default function LoginPage() {
         Willkommen zurück
       </p>
 
-      {/* Dev Login Button */}
+      {/* Login Buttons */}
       <div className="w-full max-w-xs space-y-4 animate-fade-in" style={{ animationDelay: '100ms' }}>
+        {/* Error Message */}
+        {error && (
+          <div className="p-3 rounded-lg bg-red-500/10 border border-red-500/20 text-red-400 text-sm text-center">
+            {error}
+          </div>
+        )}
+
+        {/* Google Sign-In Button */}
+        {GOOGLE_CLIENT_ID ? (
+          <div className="flex flex-col items-center gap-3">
+            {/* Native Google Button (rendered by GSI) */}
+            <div
+              id="google-signin-button"
+              className={googleLoading ? 'opacity-50 pointer-events-none' : ''}
+            />
+
+            {/* Fallback button if GSI doesn't render */}
+            {!googleReady && (
+              <Button
+                variant="outline"
+                size="lg"
+                className="w-full"
+                onClick={handleGoogleClick}
+                disabled={googleLoading}
+              >
+                <FcGoogle className="w-5 h-5 mr-2" />
+                {googleLoading ? 'Anmelden...' : 'Mit Google fortfahren'}
+              </Button>
+            )}
+          </div>
+        ) : (
+          <p className="text-xs text-center text-yellow-500">
+            Google Login nicht konfiguriert (VITE_GOOGLE_CLIENT_ID fehlt)
+          </p>
+        )}
+
+        {/* Divider */}
+        <div className="flex items-center gap-4 my-4">
+          <div className="flex-1 h-px bg-[hsl(var(--border))]" />
+          <span className="text-xs text-[hsl(var(--muted-foreground))]">oder</span>
+          <div className="flex-1 h-px bg-[hsl(var(--border))]" />
+        </div>
+
+        {/* Dev Login Button */}
         <Button
           variant="glass"
           size="lg"

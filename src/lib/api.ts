@@ -76,6 +76,37 @@ class ApiClient {
   }
 
   // =====================================================
+  // GOOGLE AUTH
+  // =====================================================
+
+  async googleAuth(idToken: string) {
+    const data = await this.request<{ 
+      user: any
+      token: string
+      isNewUser: boolean
+      linked?: boolean 
+    }>('/api/auth/google', {
+      method: 'POST',
+      body: JSON.stringify({ idToken }),
+    })
+    this.setToken(data.token)
+    return data
+  }
+
+  async linkGoogleAccount(idToken: string) {
+    return this.request<{ success: boolean; user: any }>('/api/auth/google/link', {
+      method: 'POST',
+      body: JSON.stringify({ idToken }),
+    })
+  }
+
+  async unlinkGoogleAccount() {
+    return this.request<{ success: boolean; user: any }>('/api/auth/google/unlink', {
+      method: 'POST',
+    })
+  }
+
+  // =====================================================
   // USER
   // =====================================================
 

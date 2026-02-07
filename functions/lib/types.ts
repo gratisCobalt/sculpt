@@ -4,6 +4,8 @@
 export interface Env {
   database: D1Database
   JWT_SECRET: string
+  GOOGLE_CLIENT_ID: string
+  GOOGLE_CLIENT_SECRET: string
 }
 
 // Request context with user info
