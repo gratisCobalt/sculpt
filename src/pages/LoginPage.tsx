@@ -3,7 +3,7 @@ import { Dumbbell } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { useAuth } from '@/contexts/AuthContext'
 
-const isDevEnv = import.meta.env.VITE_APP_ENV === 'dev'
+const isDevEnv = import.meta.env.DEV || import.meta.env.VITE_APP_ENV === 'dev'
 
 export default function LoginPage() {
   const { signInWithEmail } = useAuth()
