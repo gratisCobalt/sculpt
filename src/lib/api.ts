@@ -7,26 +7,52 @@ const API_BASE = import.meta.env.VITE_API_BASE_URL || 'http://localhost:3000'
 export interface ApiUser {
   id: string
   email: string
-  display_name: string
-  avatar_url?: string
-  gender_id?: number
-  body_weight_kg?: number
-  training_frequency_per_week?: number
-  fitness_goal?: string
-  experience_level?: string
+  full_name: string | null
+  display_name: string | null
+  avatar_url: string | null
+  gender_id: number | null
+  gender_code?: string
+  gender_name?: string
+  body_weight_kg: number | null
   onboarding_completed: boolean
+  training_frequency_per_week: number | null
+  fitness_goal: string | null
+  experience_level: string | null
+  current_streak: number
+  longest_streak: number
+  total_points: number
   hantel_coins: number
-  streak?: number
   created_at: string
+  updated_at: string
+  last_workout_at: string | null
 }
 
 export interface ExerciseProgress {
-  exercise_id: number
-  exercise_name: string
-  body_part_name: string
-  previous_max_weight: number
-  current_max_weight: number
-  progress_percentage: number
+  exercise: {
+    id: number
+    name: string
+    primary_category: string
+    image_url?: string
+  }
+  history: Array<{
+    date: string
+    weight: number
+    reps: number
+    volume?: number
+  }>
+  allSets?: Array<{
+    id: number
+    date: string
+    weight: number
+    reps: number
+    setNumber: number
+    isWarmup: boolean
+    isPR: boolean
+  }>
+  latestWeight: number
+  latestReps: number
+  maxWeight?: number
+  isPR?: boolean
 }
 
 export interface Exercise {
@@ -84,6 +110,7 @@ export interface Badge {
 }
 
 export interface UserBadge extends Badge {
+  badge_id: number
   earned_at: string
   notified: boolean
 }
@@ -107,7 +134,7 @@ export interface Buddy {
   display_name: string
   avatar_url?: string
   friend_streak: number
-  last_workout_at?: string
+  last_workout_at: string | null
   status: string
   direction: string
 }
@@ -116,6 +143,7 @@ export interface UserSearchResult {
   id: string
   display_name: string
   avatar_url?: string
+  current_streak?: number
 }
 
 export interface Notification {
@@ -271,13 +299,14 @@ class ApiClient {
   // =====================================================
 
   async updateUser(data: {
-    display_name?: string
-    gender_id?: number
-    body_weight_kg?: number
-    training_frequency_per_week?: number
-    fitness_goal?: string
-    experience_level?: string
+    display_name?: string | null
+    gender_id?: number | null
+    body_weight_kg?: number | null
+    training_frequency_per_week?: number | null
+    fitness_goal?: string | null
+    experience_level?: string | null
     onboarding_completed?: boolean
+    birthdate?: string | null
   }) {
     return this.request<ApiUser>('/api/users/me', {
       method: 'PATCH',

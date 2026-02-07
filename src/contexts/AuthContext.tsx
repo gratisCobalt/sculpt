@@ -22,6 +22,7 @@ export interface User {
   created_at: string
   updated_at: string
   last_workout_at: string | null
+  birthdate?: string | null
 }
 
 interface AuthContextType {
