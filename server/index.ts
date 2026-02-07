@@ -8,6 +8,7 @@ import jwt from 'jsonwebtoken'
 const app = express()
 const PORT = process.env.PORT || 3000
 const JWT_SECRET = process.env.JWT_SECRET || 'sculpt-dev-secret-2026'
+const IS_DEV = process.env.APP_ENV === 'dev' || process.env.NODE_ENV !== 'production'
 
 const pool = new pg.Pool({
   connectionString: process.env.DATABASE_URL || 'postgresql://sculpt:sculpt_dev_2026@localhost:5432/sculpt',
@@ -77,8 +78,8 @@ app.post('/api/auth/login', async (req, res) => {
     }
     
     const user = result.rows[0]
-    // For dev mode, accept any password for test user
-    if (email === 'test@sculpt-app.de' && password === 'TestUser123!') {
+    // Dev-only: accept test user credentials (disabled in production)
+    if (IS_DEV && email === 'test@sculpt-app.de' && password === 'TestUser123!') {
       const token = jwt.sign({ userId: user.id }, JWT_SECRET, { expiresIn: '7d' })
       return res.json({ user, token })
     }
