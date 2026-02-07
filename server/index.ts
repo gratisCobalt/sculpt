@@ -33,18 +33,6 @@ const authMiddleware = async (req: express.Request, res: express.Response, next:
 }
 
 // =====================================================
-// ENV INFO
-// =====================================================
-
-const DEV_DB_UUID = 'cc89a2b0-17f0-4fe4-9c90-c74076226dd8'
-const isDevDatabase = (process.env.DATABASE_URL || '').includes(DEV_DB_UUID)
-  || !(process.env.DATABASE_URL) // local dev without DATABASE_URL is also dev
-
-app.get('/api/env', (_req, res) => {
-  res.json({ isDevDb: isDevDatabase })
-})
-
-// =====================================================
 // AUTH ROUTES
 // =====================================================
 

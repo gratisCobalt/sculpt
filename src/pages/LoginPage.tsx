@@ -1,21 +1,13 @@
-import { useState, useEffect } from 'react'
+import { useState } from 'react'
 import { Dumbbell } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { useAuth } from '@/contexts/AuthContext'
 
-const API_BASE = import.meta.env.VITE_API_BASE_URL || 'http://localhost:3000'
+const isDevEnv = import.meta.env.VITE_APP_ENV === 'dev'
 
 export default function LoginPage() {
   const { signInWithEmail } = useAuth()
   const [devLoading, setDevLoading] = useState(false)
-  const [isDevDb, setIsDevDb] = useState(false)
-
-  useEffect(() => {
-    fetch(`${API_BASE}/api/env`)
-      .then(res => res.json())
-      .then(data => setIsDevDb(data.isDevDb))
-      .catch(() => setIsDevDb(false))
-  }, [])
 
   const handleDevLogin = async () => {
     setDevLoading(true)
@@ -50,8 +42,8 @@ export default function LoginPage() {
         Willkommen zurück
       </p>
 
-      {/* Dev Login Button - only shown when connected to dev database */}
-      {isDevDb && (
+      {/* Dev Login Button - only shown in dev environment */}
+      {isDevEnv && (
         <div className="w-full max-w-xs space-y-4 animate-fade-in" style={{ animationDelay: '100ms' }}>
           <Button
             variant="glass"
