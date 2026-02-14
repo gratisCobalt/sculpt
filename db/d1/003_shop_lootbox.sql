@@ -13,7 +13,10 @@ CREATE TABLE IF NOT EXISTS loot_box_config (
     min_coins INTEGER NOT NULL,
     max_coins INTEGER NOT NULL,
     upgrade_chance REAL NOT NULL, -- 0.000 - 1.000
-    UNIQUE(rarity_id)
+    UNIQUE(rarity_id),
+    CHECK (min_coins >= 0),
+    CHECK (max_coins >= min_coins),
+    CHECK (upgrade_chance >= 0.0 AND upgrade_chance <= 1.0)
 );
 
 INSERT INTO loot_box_config (rarity_id, min_coins, max_coins, upgrade_chance) VALUES
