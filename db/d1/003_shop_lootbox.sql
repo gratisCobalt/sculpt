@@ -76,13 +76,13 @@ CREATE TABLE IF NOT EXISTS shop_item (
 
 -- Insert shop items
 INSERT OR REPLACE INTO shop_item (code, category_id, name_de, name_en, description_de, description_en, price_coins, icon_name, rarity_id, max_stack) VALUES
-    ('streak_saver', 1, 'Streak Saver', 'Streak Saver', 'Schützt deinen Streak für eine Woche, falls du mal nicht trainieren kannst.', 'Protects your streak for one week if you can''t train.', 750, 'shield', 2, 3),
-    ('xp_boost_2x', 3, 'XP Boost (2x)', '2x XP Boost', '24 Stunden lang doppelte XP für alle Aktivitäten.', 'Double XP for all activities for 24 hours.', 300, 'zap', 2, 5),
-    ('loot_box_common', 1, 'Loot Box', 'Loot Box', 'Eine zusätzliche Loot Box mit zufälligen Belohnungen.', 'An extra loot box with random rewards.', 100, 'gift', 1, NULL),
-    ('loot_box_rare', 1, 'Seltene Loot Box', 'Rare Loot Box', 'Eine seltene Loot Box mit besseren Belohnungen.', 'A rare loot box with better rewards.', 350, 'gift', 2, NULL),
-    ('loot_box_epic', 1, 'Epische Loot Box', 'Epic Loot Box', 'Eine epische Loot Box mit großartigen Belohnungen.', 'An epic loot box with great rewards.', 800, 'gift', 3, NULL),
-    ('profile_frame_gold', 2, 'Goldener Rahmen', 'Gold Frame', 'Ein goldener Rahmen für dein Profilbild.', 'A gold frame for your profile picture.', 1000, 'frame', 4, 1),
-    ('title_iron_warrior', 2, 'Titel: Eisenkrieger', 'Title: Iron Warrior', 'Zeige den Titel "Eisenkrieger" unter deinem Namen.', 'Show the title "Iron Warrior" below your name.', 750, 'award', 3, 1);
+    ('streak_saver', (SELECT id FROM shop_item_category WHERE code = 'utility'), 'Streak Saver', 'Streak Saver', 'Schützt deinen Streak für eine Woche, falls du mal nicht trainieren kannst.', 'Protects your streak for one week if you can''t train.', 750, 'shield', 2, 3),
+    ('xp_boost_2x', (SELECT id FROM shop_item_category WHERE code = 'boost'), 'XP Boost (2x)', '2x XP Boost', '24 Stunden lang doppelte XP für alle Aktivitäten.', 'Double XP for all activities for 24 hours.', 300, 'zap', 2, 5),
+    ('loot_box_common', (SELECT id FROM shop_item_category WHERE code = 'utility'), 'Loot Box', 'Loot Box', 'Eine zusätzliche Loot Box mit zufälligen Belohnungen.', 'An extra loot box with random rewards.', 100, 'gift', 1, NULL),
+    ('loot_box_rare', (SELECT id FROM shop_item_category WHERE code = 'utility'), 'Seltene Loot Box', 'Rare Loot Box', 'Eine seltene Loot Box mit besseren Belohnungen.', 'A rare loot box with better rewards.', 350, 'gift', 2, NULL),
+    ('loot_box_epic', (SELECT id FROM shop_item_category WHERE code = 'utility'), 'Epische Loot Box', 'Epic Loot Box', 'Eine epische Loot Box mit großartigen Belohnungen.', 'An epic loot box with great rewards.', 800, 'gift', 3, NULL),
+    ('profile_frame_gold', (SELECT id FROM shop_item_category WHERE code = 'cosmetic'), 'Goldener Rahmen', 'Gold Frame', 'Ein goldener Rahmen für dein Profilbild.', 'A gold frame for your profile picture.', 1000, 'frame', 4, 1),
+    ('title_iron_warrior', (SELECT id FROM shop_item_category WHERE code = 'cosmetic'), 'Titel: Eisenkrieger', 'Title: Iron Warrior', 'Zeige den Titel "Eisenkrieger" unter deinem Namen.', 'Show the title "Iron Warrior" below your name.', 750, 'award', 3, 1);
 
 -- User inventory
 CREATE TABLE IF NOT EXISTS user_inventory (
