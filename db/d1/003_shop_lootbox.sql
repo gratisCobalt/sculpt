@@ -16,11 +16,15 @@ CREATE TABLE IF NOT EXISTS loot_box_config (
     UNIQUE(rarity_id)
 );
 
-INSERT OR REPLACE INTO loot_box_config (rarity_id, min_coins, max_coins, upgrade_chance) VALUES
+INSERT INTO loot_box_config (rarity_id, min_coins, max_coins, upgrade_chance) VALUES
     (1, 5, 15, 0.400),    -- Common: 5-15 coins, 40% upgrade chance
     (2, 20, 50, 0.250),   -- Rare: 20-50 coins, 25% upgrade chance
     (3, 60, 120, 0.100),  -- Epic: 60-120 coins, 10% upgrade chance
-    (4, 150, 300, 0.000); -- Legendary: 150-300 coins, can't upgrade further
+    (4, 150, 300, 0.000)  -- Legendary: 150-300 coins, can't upgrade further
+ON CONFLICT(rarity_id) DO UPDATE SET
+    min_coins      = excluded.min_coins,
+    max_coins      = excluded.max_coins,
+    upgrade_chance = excluded.upgrade_chance;
 
 -- User's pending loot boxes
 CREATE TABLE IF NOT EXISTS user_loot_box (
