@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import {
@@ -23,6 +23,7 @@ import { useAuth } from '@/contexts/AuthContext'
 import { api } from '@/lib/api'
 import { cn } from '@/lib/utils'
 import { usePushNotifications } from '@/hooks/usePushNotifications'
+import { useGoogleAuth } from '@/hooks/useGoogleAuth'
 
 const BUILD_NUMBER = '1.0.0'
 const GOOGLE_CLIENT_ID = import.meta.env.VITE_GOOGLE_CLIENT_ID || ''
@@ -73,11 +74,11 @@ export default function ProfilePage() {
   } = usePushNotifications()
 
   // Handle Google credential for linking
-  const handleGoogleLinkCallback = useCallback(async (response: { credential: string }) => {
+  const handleGoogleLinkCallback = useCallback(async (credential: string) => {
     setGoogleLinking(true)
     setGoogleError(null)
     try {
-      await linkGoogleAccount(response.credential)
+      await linkGoogleAccount(credential)
     } catch (err) {
       setGoogleError(err instanceof Error ? err.message : 'Verknüpfung fehlgeschlagen')
     } finally {
@@ -85,20 +86,14 @@ export default function ProfilePage() {
     }
   }, [linkGoogleAccount])
 
-  // Initialize Google for linking
-  useEffect(() => {
-    if (!GOOGLE_CLIENT_ID || !window.google?.accounts?.id) return
-
-    window.google.accounts.id.initialize({
-      client_id: GOOGLE_CLIENT_ID,
-      callback: handleGoogleLinkCallback,
-    })
-  }, [handleGoogleLinkCallback])
+  // Use reusable Google Auth hook
+  const { prompt: googlePrompt } = useGoogleAuth({
+    onCredential: handleGoogleLinkCallback,
+    onError: (msg) => setGoogleError(msg)
+  })
 
   const handleLinkGoogle = () => {
-    if (window.google?.accounts?.id) {
-      window.google.accounts.id.prompt()
-    }
+    googlePrompt()
   }
 
   const handleUnlinkGoogle = async () => {
