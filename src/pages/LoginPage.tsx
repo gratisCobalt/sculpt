@@ -5,6 +5,8 @@ import { Button } from '@/components/ui/button'
 import { useAuth } from '@/contexts/AuthContext'
 import { useGoogleAuth } from '@/hooks/useGoogleAuth'
 
+const API_BASE = import.meta.env.VITE_API_BASE_URL || 'http://localhost:3000'
+
 export default function LoginPage() {
   const { signInWithEmail, signInWithGoogle } = useAuth()
   const [devLoading, setDevLoading] = useState(false)
