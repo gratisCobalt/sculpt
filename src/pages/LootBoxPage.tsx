@@ -63,19 +63,27 @@ function LootBoxModal({ box, onClose, onUpdate }: LootBoxModalProps) {
     mutationFn: () => api.clickLootBox(currentBox.id),
     onSuccess: (data) => {
       setIsAnimating(true)
-      setJustUpgraded(data.upgraded)
-      
+      setJustUpgraded(data.upgraded ?? false)
+
+      // Map rarity_id to rarity_code
+      const rarityCodeMap: Record<number, string> = {
+        1: 'common',
+        2: 'rare',
+        3: 'epic',
+        4: 'legendary',
+      }
+
       setTimeout(() => {
         setCurrentBox({
           ...currentBox,
-          rarity_code: data.new_rarity_code,
-          clicks_remaining: data.clicks_left,
-          is_opened: data.clicks_left === 0,
-          coins_awarded: data.coins_won ?? undefined,
+          rarity_code: rarityCodeMap[data.rarity_id] || 'common',
+          clicks_remaining: data.clicks_remaining ?? 0,
+          is_opened: data.opened,
+          coins_awarded: data.coins_awarded ?? undefined,
         })
         setIsAnimating(false)
-        
-        if (data.coins_won) {
+
+        if (data.coins_awarded) {
           setShowCoins(true)
           refreshProfile()
           onUpdate()
@@ -95,7 +103,7 @@ function LootBoxModal({ box, onClose, onUpdate }: LootBoxModalProps) {
   return (
     <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
       <div className="absolute inset-0 bg-black/80 backdrop-blur-sm" onClick={onClose} />
-      
+
       <div className="relative z-10 w-full max-w-sm">
         {/* Close Button */}
         <button
@@ -173,8 +181,8 @@ function LootBoxModal({ box, onClose, onUpdate }: LootBoxModalProps) {
                       {currentBox.clicks_remaining === 3
                         ? 'Erste Chance!'
                         : currentBox.clicks_remaining === 2
-                        ? 'Zweite Chance!'
-                        : 'Letzte Chance!'}
+                          ? 'Zweite Chance!'
+                          : 'Letzte Chance!'}
                     </Button>
                   )}
 

@@ -1,6 +1,6 @@
 # 💪 Sculpt - Dein persönlicher Fitness Tracker
 
-Sculpt ist eine moderne Fitness-App für das Tracking von Workouts, Trainingsfortschritt und mehr. Entwickelt mit React, TypeScript und Tailwind CSS.
+Sculpt ist eine moderne Fitness-App für das Tracking von Workouts, Trainingsfortschritt und mehr. Entwickelt mit React, TypeScript und Tailwind CSS, gehostet auf Cloudflare Pages mit D1 Datenbank.
 
 ## ✨ Features
 
@@ -9,15 +9,15 @@ Sculpt ist eine moderne Fitness-App für das Tracking von Workouts, Trainingsfor
 - 📈 **Fortschritt** - Detaillierte Statistiken und Analysen
 - 👥 **Buddy System** - Trainiere mit Freunden und motiviert euch gegenseitig
 - 🎁 **Shop & Loot Boxes** - Gamification mit Hantel-Währung
-- 🤖 **KI-Coach** - Fitness-Beratung powered by Google Gemini
+- 🤖 **KI-Coach** - Fitness-Beratung (coming soon)
 
 ## 🚀 Schnellstart
 
 ### Voraussetzungen
 
-- [Node.js](https://nodejs.org/) (v22+)
-- [Docker](https://www.docker.com/) & Docker Compose
-- [Git](https://git-scm.com/)
+- [Node.js](https://nodejs.org/) (v18+)
+- [Wrangler CLI](https://developers.cloudflare.com/workers/wrangler/install-and-update/) (`npm install -g wrangler`)
+- Cloudflare Account (für D1 Datenbank)
 
 ### 1. Repository klonen
 
@@ -32,48 +32,16 @@ cd sculpt-self-hosted
 npm install
 ```
 
-### 3. Datenbank starten (Docker)
+### 3. Cloudflare Login
 
 ```bash
-# PostgreSQL & pgAdmin starten
-docker-compose up -d
-
-# Status prüfen
-docker ps
+wrangler login
 ```
 
-Die Datenbank wird automatisch mit dem Schema initialisiert (aus `db/init/`).
-
-**Zugangsdaten:**
-- **PostgreSQL**: `localhost:5432`
-  - User: `sculpt`
-  - Password: `sculpt_dev_2026`
-  - Database: `sculpt`
-- **pgAdmin**: `localhost:5050`
-  - Email: `admin@sculpt.dev`
-  - Password: `admin`
-
-### 4. Umgebungsvariablen einrichten
-
-Erstelle eine `.env` Datei im Root-Verzeichnis (falls nicht vorhanden):
-
-```env
-COMING SOON...
-```
-
-### 5. Server starten
+### 4. Lokale Entwicklung
 
 ```bash
-# Terminal 1: Backend-Server (Express API)
-npm run server
-```
-
-Der Server läuft auf `http://localhost:3000`.
-
-### 6. Frontend starten
-
-```bash
-# Terminal 2: Vite Dev Server
+# Frontend + API (mit lokaler D1)
 npm run dev
 ```
 
@@ -83,18 +51,19 @@ Die App läuft auf `http://localhost:5173`.
 
 ```
 sculpt-native/
-├── db/                    # Datenbank-Migrations & Seed-Daten
-│   └── init/              # Docker-Init-Scripts
-├── server/                # Express Backend
-│   ├── index.ts           # API-Routes
-│   └── utils/             # Utilities (TOON Parser, etc.)
+├── db/d1/                 # D1 Migrationen & Seed-Daten
+│   ├── 001_schema.sql     # Datenbankschema
+│   └── seed_mockup_data.sql
+├── functions/             # Cloudflare Pages Functions (API)
+│   ├── api/               # API-Routes
+│   └── lib/               # Shared utilities
 ├── src/                   # React Frontend
 │   ├── components/        # UI-Komponenten
 │   ├── contexts/          # React Contexts (Auth, etc.)
 │   ├── lib/               # API Client, Utils
 │   ├── pages/             # Seiten-Komponenten
 │   └── types/             # TypeScript Types
-├── docker-compose.yml     # Docker-Konfiguration
+├── wrangler.jsonc         # Cloudflare Konfiguration
 └── package.json           # NPM Scripts & Dependencies
 ```
 
@@ -102,69 +71,54 @@ sculpt-native/
 
 | Befehl | Beschreibung |
 |--------|--------------|
-| `npm run dev` | Startet Vite Dev Server |
-| `npm run server` | Startet Express Backend |
+| `npm run dev` | Startet Vite Dev Server (Frontend) |
 | `npm run build` | Baut die App für Produktion |
 | `npm run lint` | Führt ESLint aus |
 | `npm run test` | Startet Vitest im Watch-Mode |
-| `npm run test:run` | Führt Tests einmalig aus |
 
-## 🐳 Docker Commands
+## 🗄️ D1 Database Commands
 
 ```bash
-# Container starten
-docker-compose up -d
+# Migrationen ausführen (lokal)
+npx wrangler d1 execute sculpt-db --local --file=db/d1/001_schema.sql
 
-# Container stoppen
-docker-compose down
+# Migrationen ausführen (remote)
+npx wrangler d1 execute sculpt-db --remote --file=db/d1/001_schema.sql
 
-# Logs ansehen
-docker-compose logs -f postgres
+# Datenbank abfragen
+npx wrangler d1 execute sculpt-db --remote --command "SELECT COUNT(*) FROM app_user"
 
-# Datenbank zurücksetzen (⚠️ löscht alle Daten!)
-docker-compose down -v
-docker-compose up -d
+# Mock-Daten seeden (Preview-DB)
+npx wrangler d1 execute sculpt-dev --remote --file=db/d1/seed_mockup_data.sql
+```
+
+## 🔧 Umgebungsvariablen
+
+### `.dev.vars` (Cloudflare Functions Secrets)
+```env
+JWT_SECRET="your-secret-key"
+```
+
+### `.env` (Optional - für Scripts)
+```env
+EXERCISEDB_API_KEY=your-key  # Für Exercise-Import
+GOOGLE_CLIENT_ID=your-id     # Für OAuth
 ```
 
 ## 👤 Test-Account
 
-Für die Entwicklung kannst du folgenden Account nutzen:
+Für die Entwicklung:
 
 - **Email**: `test@sculpt-app.de`
-- **Password**: `TestUser123!`
+- **Dev Login**: Klicke auf "Dev Login" auf der Login-Seite
 
-## 🔧 Troubleshooting
+## 🚀 Deployment
 
-### Port bereits belegt
-
-```bash
-# Prüfen welcher Prozess den Port nutzt
-lsof -i :3000
-lsof -i :5432
-
-# Prozess beenden
-kill -9 <PID>
-```
-
-### Datenbank-Verbindung fehlgeschlagen
+Das Projekt wird automatisch bei jedem Push auf `main` via Cloudflare Pages deployt.
 
 ```bash
-# Container-Status prüfen
-docker ps -a
-
-# Container-Logs ansehen
-docker logs sculpt-db
-
-# Container neu starten
-docker-compose restart postgres
-```
-
-### Node Modules Probleme
-
-```bash
-# Cache löschen und neu installieren
-rm -rf node_modules package-lock.json
-npm install
+# Manuelles Deployment
+npx wrangler pages deploy dist --project-name=sculpt-self-hosted
 ```
 
 ## 📝 Lizenz

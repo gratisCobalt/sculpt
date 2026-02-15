@@ -1,3 +1,4 @@
+import { useState, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import {
@@ -12,15 +13,20 @@ import {
   Bell,
   BellOff,
   Loader2,
+  Link2,
+  Unlink,
 } from 'lucide-react'
+import { FcGoogle } from 'react-icons/fc'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
 import { useAuth } from '@/contexts/AuthContext'
 import { api } from '@/lib/api'
 import { cn } from '@/lib/utils'
 import { usePushNotifications } from '@/hooks/usePushNotifications'
+import { useGoogleAuth } from '@/hooks/useGoogleAuth'
 
 const BUILD_NUMBER = '1.0.0'
+const GOOGLE_CLIENT_ID = import.meta.env.VITE_GOOGLE_CLIENT_ID || ''
 
 const rarityColors: Record<string, string> = {
   common: 'bg-slate-500/20 border-slate-500/30',
@@ -55,7 +61,10 @@ function getBadgeEmoji(iconName: string): string {
 
 export default function ProfilePage() {
   const navigate = useNavigate()
-  const { user, signOut } = useAuth()
+  const { user, signOut, linkGoogleAccount, unlinkGoogleAccount } = useAuth()
+  const [googleLinking, setGoogleLinking] = useState(false)
+  const [googleUnlinking, setGoogleUnlinking] = useState(false)
+  const [googleError, setGoogleError] = useState<string | null>(null)
   const {
     isSupported: pushSupported,
     isSubscribed: pushSubscribed,
@@ -63,6 +72,41 @@ export default function ProfilePage() {
     subscribe: subscribePush,
     unsubscribe: unsubscribePush,
   } = usePushNotifications()
+
+  // Handle Google credential for linking
+  const handleGoogleLinkCallback = useCallback(async (credential: string) => {
+    setGoogleLinking(true)
+    setGoogleError(null)
+    try {
+      await linkGoogleAccount(credential)
+    } catch (err) {
+      setGoogleError(err instanceof Error ? err.message : 'Verknüpfung fehlgeschlagen')
+    } finally {
+      setGoogleLinking(false)
+    }
+  }, [linkGoogleAccount])
+
+  // Use reusable Google Auth hook
+  const { prompt: googlePrompt } = useGoogleAuth({
+    onCredential: handleGoogleLinkCallback,
+    onError: (msg) => setGoogleError(msg)
+  })
+
+  const handleLinkGoogle = () => {
+    googlePrompt()
+  }
+
+  const handleUnlinkGoogle = async () => {
+    setGoogleUnlinking(true)
+    setGoogleError(null)
+    try {
+      await unlinkGoogleAccount()
+    } catch (err) {
+      setGoogleError(err instanceof Error ? err.message : 'Entfernen fehlgeschlagen')
+    } finally {
+      setGoogleUnlinking(false)
+    }
+  }
 
   // Fetch user badges
   const { data: userBadges } = useQuery({
@@ -165,6 +209,69 @@ export default function ProfilePage() {
               {badgeProgress}
             </p>
             <p className="text-xs text-[hsl(var(--muted-foreground))]">erreicht</p>
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* Account Linking Section */}
+      <div className="mb-8">
+        <h2 className="text-lg font-semibold flex items-center gap-2 mb-4">
+          <Link2 className="w-5 h-5 text-[hsl(var(--primary))]" />
+          Verknüpfte Konten
+        </h2>
+
+        <Card>
+          <CardContent className="p-4">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-4">
+                <div className="w-10 h-10 rounded-full bg-white flex items-center justify-center border shadow-sm">
+                  <FcGoogle className="w-6 h-6" />
+                </div>
+                <div>
+                  <h3 className="font-semibold">Google</h3>
+                  <p className="text-sm text-[hsl(var(--muted-foreground))]">
+                    {user?.google_id ? 'Verknüpft' : 'Nicht verknüpft'}
+                  </p>
+                </div>
+              </div>
+
+              {user?.google_id ? (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="text-red-500 hover:text-red-600 hover:bg-red-500/10"
+                  onClick={handleUnlinkGoogle}
+                  disabled={googleUnlinking}
+                >
+                  {googleUnlinking ? (
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                  ) : (
+                    <Unlink className="w-4 h-4" />
+                  )}
+                </Button>
+              ) : (
+                GOOGLE_CLIENT_ID ? (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={handleLinkGoogle}
+                    disabled={googleLinking}
+                  >
+                    {googleLinking ? (
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                    ) : (
+                      'Verknüpfen'
+                    )}
+                  </Button>
+                ) : (
+                  <span className="text-xs text-yellow-500">Nicht konfiguriert</span>
+                )
+              )}
+            </div>
+
+            {googleError && (
+              <p className="text-xs text-red-500 mt-2">{googleError}</p>
+            )}
           </CardContent>
         </Card>
       </div>

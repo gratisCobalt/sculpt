@@ -22,15 +22,21 @@ export interface User {
   created_at: string
   updated_at: string
   last_workout_at: string | null
+  // Google OAuth fields
+  google_id?: string | null
+  auth_provider?: 'email' | 'google' | 'both' | null
 }
 
 interface AuthContextType {
   user: User | null
   loading: boolean
   signInWithEmail: (email: string, password: string) => Promise<void>
+  signInWithGoogle: (idToken: string) => Promise<{ isNewUser: boolean }>
   signOut: () => Promise<void>
   refreshProfile: () => Promise<void>
   updateProfile: (data: Partial<User>) => Promise<void>
+  linkGoogleAccount: (idToken: string) => Promise<void>
+  unlinkGoogleAccount: () => Promise<void>
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined)
@@ -69,6 +75,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   }
 
+  const signInWithGoogle = async (idToken: string) => {
+    try {
+      const { user: userData, isNewUser } = await api.googleAuth(idToken)
+      setUser(userData)
+      return { isNewUser }
+    } catch (error) {
+      console.error('Google login error:', error)
+      throw error
+    }
+  }
+
   const signOut = async () => {
     api.logout()
     setUser(null)
@@ -93,15 +110,38 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   }
 
+  const linkGoogleAccount = async (idToken: string) => {
+    try {
+      const { user: updatedUser } = await api.linkGoogleAccount(idToken)
+      setUser(updatedUser)
+    } catch (error) {
+      console.error('Failed to link Google account:', error)
+      throw error
+    }
+  }
+
+  const unlinkGoogleAccount = async () => {
+    try {
+      const { user: updatedUser } = await api.unlinkGoogleAccount()
+      setUser(updatedUser)
+    } catch (error) {
+      console.error('Failed to unlink Google account:', error)
+      throw error
+    }
+  }
+
   return (
     <AuthContext.Provider
       value={{
         user,
         loading,
         signInWithEmail,
+        signInWithGoogle,
         signOut,
         refreshProfile,
         updateProfile,
+        linkGoogleAccount,
+        unlinkGoogleAccount,
       }}
     >
       {children}

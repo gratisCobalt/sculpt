@@ -36,15 +36,15 @@ self.addEventListener('fetch', (event) => {
   // Skip non-GET requests
   if (event.request.method !== 'GET') return;
 
-  // Skip API calls (Supabase)
-  if (event.request.url.includes('supabase.co')) return;
+  // Skip API calls
+  if (event.request.url.includes('/api/')) return;
 
   event.respondWith(
     fetch(event.request)
       .then((response) => {
         // Clone the response before caching
         const responseToCache = response.clone();
-        
+
         caches.open(CACHE_NAME)
           .then((cache) => {
             cache.put(event.request, responseToCache);

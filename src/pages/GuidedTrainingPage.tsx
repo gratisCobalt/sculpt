@@ -16,9 +16,8 @@ import { Card, CardContent } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { SkeletonList, Loader } from '@/components/ui/loader'
 import { ConfettiCelebration } from '@/components/ConfettiCelebration'
-// cn import removed - not used
 import { useAuth } from '@/contexts/AuthContext'
-import { supabase } from '@/lib/supabase'
+import { api } from '@/lib/api'
 import type { TrainingPlanDay, TrainingPlanExercise } from '@/types/database'
 
 interface ExerciseWithMachine extends TrainingPlanExercise {
@@ -54,59 +53,53 @@ export default function GuidedTrainingPage() {
   const [showSummary, setShowSummary] = useState(false)
   const [showConfetti, setShowConfetti] = useState(false)
   const [showMenu, setShowMenu] = useState(false)
+  const [currentSetNumber, setCurrentSetNumber] = useState(1)
 
-  // Fetch available days if no dayId provided
+  // Fetch available days if no dayId provided - use API
   const { data: days, isLoading: daysLoading } = useQuery({
     queryKey: ['guidedTrainingDays', user?.id],
     queryFn: async () => {
-      if (!user?.id || !supabase) return []
-
-      // Get user's active training plan
-      const { data: plans } = await supabase
-        .from('training_plan_relation')
-        .select('id')
-        .eq('created_by_id', user.id)
-        .eq('is_active', true)
-        .limit(1)
-
-      if (!plans || plans.length === 0 || !supabase) return []
-
-      const { data, error } = await supabase
-        .from('training_plan_day')
-        .select('*')
-        .eq('training_plan_id', plans[0].id)
-        .eq('is_active', true)
-        .order('day_number', { ascending: true })
-
-      if (error) throw error
-      return data as TrainingPlanDay[]
+      if (!user?.id) return []
+      try {
+        const plan = await api.getUserTrainingPlan()
+        if (!plan?.days) return []
+        return plan.days as TrainingPlanDay[]
+      } catch {
+        return []
+      }
     },
     enabled: !!user?.id && !dayId,
   })
 
-  // Fetch exercises for selected day
+  // Fetch exercises for selected day - use API
   const { data: exercises, isLoading: exercisesLoading } = useQuery({
     queryKey: ['guidedExercises', dayId],
     queryFn: async () => {
-      if (!dayId || !supabase) return []
-
-      const { data, error } = await supabase
-        .from('training_plan_exercise')
-        .select(`
-          *,
-          machine:machine_id (
-            id,
-            name
-          )
-        `)
-        .eq('training_plan_day_id', dayId)
-        .order('sequence', { ascending: true })
-
-      if (error) throw error
-      return data as ExerciseWithMachine[]
+      if (!dayId) return []
+      try {
+        const plan = await api.getUserTrainingPlan()
+        const day = plan?.days?.find((d: TrainingPlanDay) => String(d.id) === dayId)
+        return (day?.exercises || []) as ExerciseWithMachine[]
+      } catch {
+        return []
+      }
     },
     enabled: !!dayId,
   })
+
+  const currentExercise = exercises?.[currentExerciseIndex]
+
+  // Letzte Workout-Daten für aktuelle Übung holen (für Placeholder)
+  const { data: lastWorkoutData } = useQuery({
+    queryKey: ['exerciseLastWorkout', currentExercise?.exercise_id],
+    queryFn: () => api.getExerciseLastWorkout(currentExercise!.exercise_id!),
+    enabled: !!currentExercise?.exercise_id && isTraining,
+  })
+
+  // Placeholder-Werte basierend auf aktuellem Satz
+  const lastSetData = lastWorkoutData?.sets?.[currentSetNumber]
+  const weightPlaceholder = lastSetData ? `${lastSetData.weight}` : '0'
+  const repsPlaceholder = lastSetData ? `${lastSetData.reps}` : '0'
 
   // Timer effect
   useEffect(() => {
@@ -123,20 +116,20 @@ export default function GuidedTrainingPage() {
     }
   }, [isTraining, isPaused])
 
-  // Save workout mutation
+  // Save workout mutation - using API
   const saveWorkoutMutation = useMutation({
     mutationFn: async (log: WorkoutLog) => {
-      if (!user?.id || !log.machineId || !supabase) return
+      if (!user?.id) return
 
-      const { error } = await supabase.from('workout_entry').insert({
-        machine_id: log.machineId,
-        created_by_id: user.id,
-        max_weight: log.weight,
-        reps: log.reps,
-        training_plan_exercise_id: log.exerciseId,
+      // Save via API
+      await api.createWorkout({
+        sets: [{
+          exercise_id: log.exerciseId,
+          set_number: currentSetNumber,
+          weight_kg: log.weight,
+          reps: log.reps,
+        }]
       })
-
-      if (error) throw error
     },
   })
 
@@ -145,8 +138,6 @@ export default function GuidedTrainingPage() {
     const secs = seconds % 60
     return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`
   }
-
-  const currentExercise = exercises?.[currentExerciseIndex]
 
   const handleSaveAndNext = useCallback(async () => {
     if (!currentExercise || !weight || !reps) return
@@ -166,11 +157,15 @@ export default function GuidedTrainingPage() {
     // Add to logs
     setWorkoutLogs((prev) => [...prev, log])
 
+    // Nächsten Satz vorbereiten oder zur nächsten Übung
+    setCurrentSetNumber((prev) => prev + 1)
+
     // Move to next exercise or finish
     if (currentExerciseIndex < (exercises?.length || 0) - 1) {
       setCurrentExerciseIndex((prev) => prev + 1)
       setWeight('')
       setReps('')
+      setCurrentSetNumber(1) // Reset set counter für neue Übung
     } else {
       // Training complete
       setShowConfetti(true)
@@ -182,6 +177,8 @@ export default function GuidedTrainingPage() {
     if (currentExerciseIndex < (exercises?.length || 0) - 1) {
       setCurrentExerciseIndex((prev) => prev + 1)
       setWeight('')
+      setReps('')
+      setCurrentSetNumber(1) // Reset set counter
       setReps('')
     } else {
       setShowSummary(true)
@@ -451,8 +448,11 @@ export default function GuidedTrainingPage() {
             <h2 className="text-2xl font-bold mb-2">
               {currentExercise.machine?.name || currentExercise.exercise_name || 'Übung'}
             </h2>
+            <p className="text-sm text-[hsl(var(--primary))]">
+              Satz {currentSetNumber}
+            </p>
             {currentExercise.notes && (
-              <p className="text-[hsl(var(--muted-foreground))]">
+              <p className="text-[hsl(var(--muted-foreground))] mt-1">
                 {currentExercise.notes}
               </p>
             )}
@@ -470,10 +470,10 @@ export default function GuidedTrainingPage() {
           </label>
           <Input
             type="number"
-            placeholder="0"
+            placeholder={weightPlaceholder}
             value={weight}
             onChange={(e) => setWeight(e.target.value)}
-            className="text-2xl font-bold h-16 text-center"
+            className="text-2xl font-bold h-16 text-center placeholder:text-blue-400/60"
           />
         </div>
         <div>
@@ -482,10 +482,10 @@ export default function GuidedTrainingPage() {
           </label>
           <Input
             type="number"
-            placeholder="0"
+            placeholder={repsPlaceholder}
             value={reps}
             onChange={(e) => setReps(e.target.value)}
-            className="text-2xl font-bold h-16 text-center"
+            className="text-2xl font-bold h-16 text-center placeholder:text-blue-400/60"
           />
         </div>
       </div>

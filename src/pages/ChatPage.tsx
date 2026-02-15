@@ -4,7 +4,6 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { cn } from '@/lib/utils'
 import { useAuth } from '@/contexts/AuthContext'
-import { supabase } from '@/lib/supabase'
 
 interface Message {
   id: string
@@ -19,7 +18,7 @@ export default function ChatPage() {
     {
       id: '1',
       role: 'assistant',
-      content: `Hallo ${user?.display_name || 'Athlet'}! 👋 Ich bin dein KI-Fitness-Coach. Frag mich alles zu Training, Ernährung oder Technik!`,
+      content: `Hallo ${user?.display_name || 'Athlet'}! 👋 Ich bin dein KI-Fitness-Coach. Diese Funktion wird bald verfügbar sein!`,
       timestamp: new Date(),
     },
   ])
@@ -50,26 +49,13 @@ export default function ChatPage() {
     setIsLoading(true)
 
     try {
-      // Call Supabase Edge Function for Vertex AI
-      if (!supabase) throw new Error('Supabase not initialized')
-      const { data, error } = await supabase.functions.invoke('chat', {
-        body: {
-          message: userMessage.content,
-          context: {
-            userName: user?.display_name,
-            fitnessGoal: user?.fitness_goal,
-            experience: user?.experience_level,
-            frequency: user?.training_frequency_per_week,
-          },
-        },
-      })
-
-      if (error) throw error
+      // TODO: Implement AI chat via Cloudflare AI or external API
+      await new Promise(resolve => setTimeout(resolve, 1000))
 
       const assistantMessage: Message = {
         id: (Date.now() + 1).toString(),
         role: 'assistant',
-        content: data.response || 'Entschuldigung, ich konnte keine Antwort generieren.',
+        content: 'Der KI-Coach ist aktuell in Entwicklung. Bald werde ich dir bei allen Fitness-Fragen helfen können! 💪',
         timestamp: new Date(),
       }
 
@@ -77,7 +63,6 @@ export default function ChatPage() {
     } catch (error) {
       console.error('Chat error:', error)
 
-      // Fallback response
       const errorMessage: Message = {
         id: (Date.now() + 1).toString(),
         role: 'assistant',

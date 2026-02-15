@@ -1,4 +1,6 @@
-const API_BASE = import.meta.env.VITE_API_BASE_URL || 'http://localhost:3000'
+// API Base URL - empty string for relative paths (works with Pages Functions)
+// Set VITE_API_BASE_URL for local dev with separate backend
+const API_BASE = import.meta.env.VITE_API_BASE_URL || ''
 
 class ApiClient {
   private token: string | null = null
@@ -74,6 +76,37 @@ class ApiClient {
   }
 
   // =====================================================
+  // GOOGLE AUTH
+  // =====================================================
+
+  async googleAuth(idToken: string) {
+    const data = await this.request<{ 
+      user: any
+      token: string
+      isNewUser: boolean
+      linked?: boolean 
+    }>('/api/auth/google', {
+      method: 'POST',
+      body: JSON.stringify({ idToken }),
+    })
+    this.setToken(data.token)
+    return data
+  }
+
+  async linkGoogleAccount(idToken: string) {
+    return this.request<{ success: boolean; user: any }>('/api/auth/google/link', {
+      method: 'POST',
+      body: JSON.stringify({ idToken }),
+    })
+  }
+
+  async unlinkGoogleAccount() {
+    return this.request<{ success: boolean; user: any }>('/api/auth/google/unlink', {
+      method: 'POST',
+    })
+  }
+
+  // =====================================================
   // USER
   // =====================================================
 
@@ -134,8 +167,41 @@ class ApiClient {
     return this.request<any[]>(`/api/exercises?${params}`)
   }
 
+  async getExercisesPaginated(options: { 
+    search?: string
+    bodyPart?: string
+    page?: number
+    limit?: number 
+  } = {}) {
+    const params = new URLSearchParams()
+    if (options.search) params.append('search', options.search)
+    if (options.bodyPart && options.bodyPart !== 'all') params.append('bodyPart', options.bodyPart)
+    if (options.page) params.append('page', options.page.toString())
+    if (options.limit) params.append('limit', options.limit.toString())
+    return this.request<{
+      exercises: Array<{
+        id: number
+        external_id: string
+        name: string
+        name_de: string | null
+        image_url: string | null
+        video_url: string | null
+        body_part: string | null
+        body_part_name: string | null
+      }>
+      pagination: { page: number; limit: number; total: number; totalPages: number }
+    }>(`/api/exercises?${params}`)
+  }
+
   async getExercise(id: number) {
     return this.request<any>(`/api/exercises/${id}`)
+  }
+
+  async getExerciseLastWorkout(exerciseId: number) {
+    return this.request<{
+      lastWorkoutDate: string | null
+      sets: Record<number, { weight: number; reps: number; isWarmup: boolean }>
+    }>(`/api/exercises/${exerciseId}/last-workout`)
   }
 
   // =====================================================
@@ -263,7 +329,7 @@ class ApiClient {
   async sendFriendRequest(userId: string) {
     return this.request<any>('/api/buddies/request', {
       method: 'POST',
-      body: JSON.stringify({ userId }),
+      body: JSON.stringify({ user_id: userId }),
     })
   }
 
@@ -291,13 +357,13 @@ class ApiClient {
   // =====================================================
 
   async getNotifications(unreadOnly = false, limit = 50) {
-    return this.request<any[]>(`/api/notifications?unreadOnly=${unreadOnly}&limit=${limit}`)
+    return this.request<any[]>(`/api/notifications?unread=${unreadOnly}&limit=${limit}`)
   }
 
   async markNotificationsRead(notificationIds: number[] | 'all') {
     return this.request<{ success: boolean }>('/api/notifications/read', {
-      method: 'PATCH',
-      body: JSON.stringify({ notificationIds }),
+      method: 'POST',
+      body: JSON.stringify({ notification_ids: notificationIds === 'all' ? undefined : notificationIds }),
     })
   }
 
@@ -388,11 +454,11 @@ class ApiClient {
   // =====================================================
 
   async getShopItems() {
-    return this.request<any[]>('/api/shop/items')
+    return this.request<any[]>('/api/shop')
   }
 
   async getInventory() {
-    return this.request<any[]>('/api/shop/inventory')
+    return this.request<any[]>('/api/inventory')
   }
 
   async purchaseItem(itemId: number, quantity = 1) {
@@ -409,18 +475,17 @@ class ApiClient {
   }
 
   async getLootBoxes() {
-    return this.request<any[]>('/api/loot-boxes')
+    return this.request<any[]>('/api/lootboxes')
   }
 
   async clickLootBox(boxId: number) {
     return this.request<{
-      success: boolean
-      new_rarity_id: number
-      new_rarity_code: string
-      clicks_left: number
-      upgraded: boolean
-      coins_won: number | null
-    }>(`/api/loot-boxes/${boxId}/click`, {
+      opened: boolean
+      clicks_remaining?: number
+      rarity_id: number
+      upgraded?: boolean
+      coins_awarded?: number
+    }>(`/api/lootboxes/${boxId}/click`, {
       method: 'POST',
     })
   }
@@ -438,6 +503,190 @@ class ApiClient {
       streak: number
     }>('/api/stats/weekly')
   }
+
+  // =====================================================
+  // LEADERBOARD & RANKINGS
+  // =====================================================
+
+  async getWeeklyLeaderboard() {
+    return this.request<{
+      leaderboard: LeaderboardUser[]
+      currentUserRank: number
+      league: LeagueTier
+      level: UserLevel
+      nextLevel: UserLevel | null
+      totalParticipants: number
+    }>('/api/leaderboard/weekly')
+  }
+
+  async getLeagues() {
+    return this.request<(LeagueTier & { user_count: number; fake_user_count: number })[]>('/api/leagues')
+  }
+
+  async getLevels() {
+    return this.request<UserLevel[]>('/api/levels')
+  }
+
+  async getFitnessGoals() {
+    return this.request<FitnessGoal[]>('/api/fitness-goals')
+  }
+
+  async getUserLevel() {
+    return this.request<{
+      xp_total: number
+      current_level: number
+      league_id: number
+      league_points: number
+      level_name: string
+      level_icon: string
+      level_color: string
+      current_level_xp: number
+      next_level_xp: number | null
+      league_code: string
+      league_name: string
+      league_icon: string
+      league_color: string
+      progress_percent: number
+      xp_to_next: number
+    }>('/api/user/level')
+  }
+
+  // =====================================================
+  // CHALLENGES
+  // =====================================================
+
+  async getChallengeTypes() {
+    return this.request<ChallengeType[]>('/api/challenges/types')
+  }
+
+  async getActiveChallenges() {
+    return this.request<Challenge[]>('/api/challenges')
+  }
+
+  async getChallengeHistory(limit = 20) {
+    return this.request<Challenge[]>(`/api/challenges/history?limit=${limit}`)
+  }
+
+  async createChallenge(data: {
+    opponentId: string
+    challengeTypeId: number
+    exerciseId?: number
+    targetValue?: number
+    wagerCoins?: number
+    endsAt?: string
+    durationPreset?: '1h' | '1d' | 'week' | 'custom'
+  }) {
+    return this.request<Challenge>('/api/challenges', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    })
+  }
+
+  async acceptChallenge(challengeId: number) {
+    return this.request<Challenge>(`/api/challenges/${challengeId}/accept`, {
+      method: 'PATCH',
+    })
+  }
+
+  async declineChallenge(challengeId: number) {
+    return this.request<Challenge>(`/api/challenges/${challengeId}/decline`, {
+      method: 'PATCH',
+    })
+  }
+
+  async cancelChallenge(challengeId: number) {
+    return this.request<Challenge>(`/api/challenges/${challengeId}/cancel`, {
+      method: 'PATCH',
+    })
+  }
+}
+
+// Types for leaderboard and challenges
+export interface LeaderboardUser {
+  id: string
+  display_name: string
+  avatar_url: string | null
+  fitness_goal: string | null
+  current_streak: number
+  xp_total: number
+  current_level: number
+  league_id: number
+  weekly_volume_kg: number
+  weekly_workout_count: number
+  is_fake: boolean
+  is_buddy: boolean
+  rank: number
+}
+
+export interface LeagueTier {
+  id: number
+  code: string
+  name_de: string
+  name_en: string
+  tier_order: number
+  icon_name: string
+  color_hex: string
+  min_points: number
+  promotion_percent: number
+  demotion_percent: number
+}
+
+export interface UserLevel {
+  level: number
+  name_de: string
+  name_en: string
+  xp_required: number
+  icon_name: string
+  color_hex: string
+}
+
+export interface FitnessGoal {
+  id: number
+  code: string
+  name_de: string
+  name_en: string
+  emoji: string
+}
+
+export interface ChallengeType {
+  id: number
+  code: string
+  name_de: string
+  name_en: string
+  description_de: string
+  icon_name: string
+  metric: string
+}
+
+export interface Challenge {
+  id: number
+  friendship_id: number
+  challenge_type_id: number
+  exercise_id: number | null
+  challenger_id: string
+  opponent_id: string
+  status: 'pending' | 'active' | 'completed' | 'cancelled' | 'declined'
+  target_value: number | null
+  challenger_progress: number
+  opponent_progress: number
+  wager_coins: number
+  xp_reward: number
+  winner_id: string | null
+  starts_at: string | null
+  ends_at: string
+  accepted_at: string | null
+  created_at: string
+  challenge_type_code: string
+  challenge_type_name: string
+  challenge_type_icon: string
+  metric: string
+  challenger_name: string
+  challenger_avatar: string | null
+  challenger_goal: string | null
+  opponent_name: string
+  opponent_avatar: string | null
+  opponent_goal: string | null
+  exercise_name: string | null
 }
 
 export const api = new ApiClient()
