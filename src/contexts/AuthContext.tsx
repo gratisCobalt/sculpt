@@ -31,6 +31,7 @@ interface AuthContextType {
   user: User | null
   loading: boolean
   signInWithEmail: (email: string, password: string) => Promise<void>
+  signUpWithEmail: (email: string, password: string, displayName: string) => Promise<void>
   signInWithGoogle: (idToken: string) => Promise<{ isNewUser: boolean }>
   signOut: () => Promise<void>
   refreshProfile: () => Promise<void>
@@ -71,6 +72,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setUser(userData)
     } catch (error) {
       console.error('Login error:', error)
+      throw error
+    }
+  }
+
+  const signUpWithEmail = async (email: string, password: string, displayName: string) => {
+    try {
+      const { user: userData } = await api.register(email, password, displayName)
+      setUser(userData)
+    } catch (error) {
+      console.error('Register error:', error)
       throw error
     }
   }
@@ -136,6 +147,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         user,
         loading,
         signInWithEmail,
+        signUpWithEmail,
         signInWithGoogle,
         signOut,
         refreshProfile,
