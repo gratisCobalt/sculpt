@@ -18,7 +18,7 @@ import {
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { cn } from '@/lib/utils'
-import { useAuth } from '@/contexts/AuthContext'
+import { useAuth } from '@/hooks/useAuth'
 import { ConfettiCelebration } from '@/components/ConfettiCelebration'
 import { api } from '@/lib/api'
 
@@ -185,7 +185,7 @@ export default function OnboardingPage() {
       // Show confetti after brief delay
       setTimeout(() => {
         setShowConfetti(true)
-        
+
         // Refresh profile and navigate after animation
         refreshProfile().then(() => {
           setTimeout(() => {
@@ -195,11 +195,11 @@ export default function OnboardingPage() {
       }, 500)
     } catch (error) {
       console.error('Error completing onboarding:', error)
-      
+
       // Clear timers
       if (timeoutRef.current) clearTimeout(timeoutRef.current)
       if (progressIntervalRef.current) clearInterval(progressIntervalRef.current)
-      
+
       // If we were generating plan, show error
       if (isGeneratingPlan) {
         setGenerationError('Trainingsplan konnte nicht erstellt werden. Bitte versuche es später erneut oder kontaktiere den Support unter info@sculpt-app.de')
@@ -235,8 +235,8 @@ export default function OnboardingPage() {
             <p className="text-[hsl(var(--muted-foreground))] mb-8">
               {generationError}
             </p>
-            <Button 
-              size="lg" 
+            <Button
+              size="lg"
               onClick={() => {
                 setGenerationError(null)
                 navigate('/dashboard')
@@ -251,7 +251,7 @@ export default function OnboardingPage() {
             <div className="w-24 h-24 rounded-full gradient-primary flex items-center justify-center mx-auto mb-8 gradient-shadow">
               <Loader2 className="w-12 h-12 text-gray-900 animate-spin" />
             </div>
-            
+
             <h2 className="text-2xl font-bold mb-2">Dein Trainingsplan wird erstellt</h2>
             <p className="text-[hsl(var(--muted-foreground))] mb-8">
               Unsere KI erstellt einen personalisierten Plan basierend auf deinen Angaben...
@@ -259,7 +259,7 @@ export default function OnboardingPage() {
 
             {/* Progress Bar */}
             <div className="w-full h-3 bg-[hsl(var(--surface-soft))] rounded-full overflow-hidden mb-4">
-              <div 
+              <div
                 className="h-full gradient-primary transition-all duration-300 ease-out"
                 style={{ width: `${generationProgress}%` }}
               />

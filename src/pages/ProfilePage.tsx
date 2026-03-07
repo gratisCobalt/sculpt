@@ -19,7 +19,7 @@ import {
 import { FcGoogle } from 'react-icons/fc'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
-import { useAuth } from '@/contexts/AuthContext'
+import { useAuth } from '@/hooks/useAuth'
 import { api } from '@/lib/api'
 import { cn } from '@/lib/utils'
 import { usePushNotifications } from '@/hooks/usePushNotifications'

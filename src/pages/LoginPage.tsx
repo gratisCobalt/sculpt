@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback } from 'react'
 import { Dumbbell, Mail, Lock, User, Eye, EyeOff } from 'lucide-react'
 import { FcGoogle } from 'react-icons/fc'
 import { Button } from '@/components/ui/button'
-import { useAuth } from '@/contexts/AuthContext'
+import { useAuth } from '@/hooks/useAuth'
 import { useGoogleAuth } from '@/hooks/useGoogleAuth'
 
 const IS_DEV = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1'
@@ -146,8 +146,8 @@ export default function LoginPage() {
             type="button"
             onClick={() => { setMode('login'); setError(null) }}
             className={`flex-1 py-2.5 rounded-xl text-sm font-semibold transition-all duration-300 ${mode === 'login'
-                ? 'gradient-primary text-gray-900 gradient-shadow'
-                : 'text-[hsl(var(--muted-foreground))] hover:text-[hsl(var(--foreground))]'
+              ? 'gradient-primary text-gray-900 gradient-shadow'
+              : 'text-[hsl(var(--muted-foreground))] hover:text-[hsl(var(--foreground))]'
               }`}
           >
             Anmelden
@@ -156,8 +156,8 @@ export default function LoginPage() {
             type="button"
             onClick={() => { setMode('register'); setError(null) }}
             className={`flex-1 py-2.5 rounded-xl text-sm font-semibold transition-all duration-300 ${mode === 'register'
-                ? 'gradient-primary text-gray-900 gradient-shadow'
-                : 'text-[hsl(var(--muted-foreground))] hover:text-[hsl(var(--foreground))]'
+              ? 'gradient-primary text-gray-900 gradient-shadow'
+              : 'text-[hsl(var(--muted-foreground))] hover:text-[hsl(var(--foreground))]'
               }`}
           >
             Registrieren

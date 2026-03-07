@@ -17,7 +17,7 @@ import { MachineProgressCard } from '@/components/MachineProgressCard'
 import { ExerciseHistoryModal } from '@/components/ExerciseHistoryModal'
 import { WorkoutAnalysisChart } from '@/components/WorkoutAnalysisChart'
 import { cn } from '@/lib/utils'
-import { useAuth } from '@/contexts/AuthContext'
+import { useAuth } from '@/hooks/useAuth'
 import { api } from '@/lib/api'
 
 const categories = [

@@ -1,6 +1,6 @@
 import { useState, useCallback } from 'react'
 import { api } from '@/lib/api'
-import { useAuth } from '@/contexts/AuthContext'
+import { useAuth } from '@/hooks/useAuth'
 
 interface Badge {
   id: number

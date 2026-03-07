@@ -22,7 +22,7 @@ import { Input } from '@/components/ui/input'
 import { cn } from '@/lib/utils'
 import { api } from '@/lib/api'
 import type { LeaderboardUser, Challenge } from '@/lib/api'
-import { useAuth } from '@/contexts/AuthContext'
+import { useAuth } from '@/hooks/useAuth'
 import ChallengeModal from '@/components/ChallengeModal'
 
 type TabType = 'buddies' | 'rang' | 'challenges'

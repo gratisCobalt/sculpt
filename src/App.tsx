@@ -1,6 +1,7 @@
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
-import { AuthProvider, useAuth } from '@/contexts/AuthContext'
+import { AuthProvider } from '@/contexts/AuthContext'
+import { useAuth } from '@/hooks/useAuth'
 
 // Pages
 import LandingPage from '@/pages/LandingPage'
@@ -71,121 +72,121 @@ function AppRoutes() {
     <>
       <BadgePopup badge={currentBadge} onClose={dismissBadge} />
       <Routes>
-      {/* Public routes */}
-      <Route
-        path="/"
-        element={user ? <Navigate to="/dashboard" replace /> : <LandingPage />}
-      />
-      <Route
-        path="/login"
-        element={user ? <Navigate to="/dashboard" replace /> : <LoginPage />}
-      />
+        {/* Public routes */}
+        <Route
+          path="/"
+          element={user ? <Navigate to="/dashboard" replace /> : <LandingPage />}
+        />
+        <Route
+          path="/login"
+          element={user ? <Navigate to="/dashboard" replace /> : <LoginPage />}
+        />
 
-      {/* Onboarding route - always accessible for logged-in users */}
-      <Route
-        path="/onboarding"
-        element={
-          !user ? (
-            <Navigate to="/login" replace />
-          ) : (
-            <OnboardingPage />
-          )
-        }
-      />
+        {/* Onboarding route - always accessible for logged-in users */}
+        <Route
+          path="/onboarding"
+          element={
+            !user ? (
+              <Navigate to="/login" replace />
+            ) : (
+              <OnboardingPage />
+            )
+          }
+        />
 
-      {/* Protected routes with bottom nav */}
-      <Route
-        path="/dashboard"
-        element={
-          <ProtectedRoute>
-            <DashboardPage />
-            <BottomNav />
-          </ProtectedRoute>
-        }
-      />
-      <Route
-        path="/training-plan"
-        element={
-          <ProtectedRoute>
-            <TrainingPlanPage />
-            <BottomNav />
-          </ProtectedRoute>
-        }
-      />
-      <Route
-        path="/guided-training"
-        element={
-          <ProtectedRoute>
-            <GuidedTrainingPage />
-          </ProtectedRoute>
-        }
-      />
-      <Route
-        path="/add-workout"
-        element={
-          <ProtectedRoute>
-            <AddWorkoutPage />
-            <BottomNav />
-          </ProtectedRoute>
-        }
-      />
-      <Route
-        path="/buddies"
-        element={
-          <ProtectedRoute>
-            <BuddyPage />
-            <BottomNav />
-          </ProtectedRoute>
-        }
-      />
-      <Route
-        path="/buddies/:buddyId/chat"
-        element={
-          <ProtectedRoute>
-            <BuddyChatPage />
-          </ProtectedRoute>
-        }
-      />
-      <Route
-        path="/shop"
-        element={
-          <ProtectedRoute>
-            <ShopPage />
-            <BottomNav />
-          </ProtectedRoute>
-        }
-      />
-      <Route
-        path="/loot-boxes"
-        element={
-          <ProtectedRoute>
-            <LootBoxPage />
-            <BottomNav />
-          </ProtectedRoute>
-        }
-      />
-      <Route
-        path="/chat"
-        element={
-          <ProtectedRoute>
-            <ChatPage />
-            <BottomNav />
-          </ProtectedRoute>
-        }
-      />
-      <Route
-        path="/profile"
-        element={
-          <ProtectedRoute>
-            <ProfilePage />
-            <BottomNav />
-          </ProtectedRoute>
-        }
-      />
+        {/* Protected routes with bottom nav */}
+        <Route
+          path="/dashboard"
+          element={
+            <ProtectedRoute>
+              <DashboardPage />
+              <BottomNav />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/training-plan"
+          element={
+            <ProtectedRoute>
+              <TrainingPlanPage />
+              <BottomNav />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/guided-training"
+          element={
+            <ProtectedRoute>
+              <GuidedTrainingPage />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/add-workout"
+          element={
+            <ProtectedRoute>
+              <AddWorkoutPage />
+              <BottomNav />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/buddies"
+          element={
+            <ProtectedRoute>
+              <BuddyPage />
+              <BottomNav />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/buddies/:buddyId/chat"
+          element={
+            <ProtectedRoute>
+              <BuddyChatPage />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/shop"
+          element={
+            <ProtectedRoute>
+              <ShopPage />
+              <BottomNav />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/loot-boxes"
+          element={
+            <ProtectedRoute>
+              <LootBoxPage />
+              <BottomNav />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/chat"
+          element={
+            <ProtectedRoute>
+              <ChatPage />
+              <BottomNav />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/profile"
+          element={
+            <ProtectedRoute>
+              <ProfilePage />
+              <BottomNav />
+            </ProtectedRoute>
+          }
+        />
 
-      {/* Catch all */}
-      <Route path="*" element={<Navigate to="/" replace />} />
-    </Routes>
+        {/* Catch all */}
+        <Route path="*" element={<Navigate to="/" replace />} />
+      </Routes>
     </>
   )
 }

@@ -16,7 +16,7 @@ import { Card, CardContent } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { SkeletonList, Loader } from '@/components/ui/loader'
 import { ConfettiCelebration } from '@/components/ConfettiCelebration'
-import { useAuth } from '@/contexts/AuthContext'
+import { useAuth } from '@/hooks/useAuth'
 import { api } from '@/lib/api'
 import type { TrainingPlanDay, TrainingPlanExercise } from '@/types/database'
 
