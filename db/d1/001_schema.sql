@@ -177,6 +177,10 @@ CREATE TABLE IF NOT EXISTS app_user (
     league_points INTEGER DEFAULT 0,
     league_week_start TEXT,
     
+    -- Google OAuth
+    google_id TEXT,
+    auth_provider TEXT DEFAULT 'email', -- 'email', 'google', 'both'
+    
     -- Timestamps (ISO 8601 format)
     created_at TEXT DEFAULT (datetime('now')),
     updated_at TEXT DEFAULT (datetime('now')),
@@ -450,6 +454,7 @@ CREATE INDEX IF NOT EXISTS idx_workout_set_exercise ON workout_set(exercise_id);
 CREATE INDEX IF NOT EXISTS idx_user_badge_user ON user_badge(user_id);
 CREATE INDEX IF NOT EXISTS idx_personal_record_user ON personal_record(user_id);
 CREATE INDEX IF NOT EXISTS idx_app_user_email ON app_user(email);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_app_user_google_id ON app_user(google_id);
 
 -- =====================================================
 -- INITIAL BADGE DATA
