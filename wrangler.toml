@@ -18,6 +18,9 @@ database_id = "cc89a2b0-17f0-4fe4-9c90-c74076226dd8"
 
 [vars]
 # JWT_SECRET is set via .dev.vars for local dev
+AI_PROVIDER = "ollama"
+OLLAMA_BASE_URL = "https://ollama.com"
+OLLAMA_MODEL = "qwen3.5:397b-cloud"
 
 # =====================================================
 # PRODUCTION ENVIRONMENT
@@ -31,3 +34,6 @@ database_id = "b84bfe73-0ba1-4f8a-8a7d-69468c4f3d49"
 
 [env.production.vars]
 # JWT_SECRET is set via 'wrangler pages secret put JWT_SECRET'
+AI_PROVIDER = "ollama"
+OLLAMA_BASE_URL = "https://ollama.com"
+OLLAMA_MODEL = "qwen3.5:397b-cloud"
