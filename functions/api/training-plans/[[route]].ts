@@ -20,29 +20,16 @@ async function handleListPlans(ctx: RequestContext): Promise<Response> {
   try {
     const result = await env.database.prepare(`
       SELECT tp.*,
-        (SELECT COUNT(*) FROM training_plan_day WHERE training_plan_id = tp.id) as total_days
+        (SELECT COUNT(*) FROM training_plan_day WHERE training_plan_id = tp.id) as total_days,
+        (SELECT COUNT(*) FROM training_plan_exercise tpe
+         JOIN training_plan_day tpd ON tpe.training_plan_day_id = tpd.id
+         WHERE tpd.training_plan_id = tp.id) as total_exercises
       FROM training_plan tp
       WHERE tp.is_system_plan = 1
       ORDER BY tp.name
     `).all()
 
-    // Get exercise count for each plan
-    const plans = []
-    for (const plan of (result.results || []) as Record<string, unknown>[]) {
-      const exerciseCount = await env.database.prepare(`
-        SELECT COUNT(*) as count 
-        FROM training_plan_exercise tpe
-        JOIN training_plan_day tpd ON tpe.training_plan_day_id = tpd.id
-        WHERE tpd.training_plan_id = ?
-      `).bind(plan.id).first<{ count: number }>()
-
-      plans.push({
-        ...plan,
-        total_exercises: exerciseCount?.count || 0,
-      })
-    }
-
-    return jsonResponse(plans)
+    return jsonResponse(result.results || [])
   } catch (error) {
     console.error('List training plans error:', error)
     return errorResponse('Failed to list training plans', 500)
