@@ -371,6 +371,17 @@ async function handleGeneratePlan(ctx: RequestContext): Promise<Response> {
       return errorResponse('fitness_goal, experience_level, training_frequency, and focus_areas are required', 400)
     }
 
+    // Rate limit: max 5 plan generations per 10 minutes
+    const tenMinutesAgo = new Date(Date.now() - 600000).toISOString()
+    const recentPlans = await env.database.prepare(
+      `SELECT COUNT(*) as count FROM training_plan
+       WHERE created_by_id = ? AND created_at > ?`
+    ).bind(userId, tenMinutesAgo).first<{ count: number }>()
+
+    if (recentPlans && recentPlans.count >= 5) {
+      return errorResponse('Rate limit exceeded. Please wait before generating another plan.', 429)
+    }
+
     // Load exercises from DB
     let exercisesResult
     if (available_exercises && available_exercises.length > 0) {
