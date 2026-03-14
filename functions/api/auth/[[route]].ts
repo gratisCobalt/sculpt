@@ -81,16 +81,11 @@ async function handleLogin(ctx: RequestContext): Promise<Response> {
       return errorResponse('Invalid credentials', 401)
     }
     
-    // For dev mode, accept test user with specific password
-    // In production, always verify password hash
-    let isValidPassword = false
-    
-    if (email === 'test@sculpt-app.de' && password === 'TestUser123!') {
-      isValidPassword = true
-    } else if (user.password_hash && typeof user.password_hash === 'string') {
-      isValidPassword = await verifyPassword(password, user.password_hash)
+    if (!user.password_hash || typeof user.password_hash !== 'string') {
+      return errorResponse('Invalid credentials', 401)
     }
-    
+
+    const isValidPassword = await verifyPassword(password, user.password_hash)
     if (!isValidPassword) {
       return errorResponse('Invalid credentials', 401)
     }
