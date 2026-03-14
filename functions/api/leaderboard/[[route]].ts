@@ -73,7 +73,7 @@ async function handleGetLeaderboard(ctx: RequestContext): Promise<Response> {
     }))
 
     // Find current user's rank
-    const currentUserEntry = leaderboard.find(entry => (entry as any).id === userId)
+    const currentUserEntry = leaderboard.find(entry => (entry as Record<string, unknown>).id === userId)
     const currentUserRank = currentUserEntry?.rank || 0
 
     // Get user's league and level info
@@ -101,7 +101,7 @@ async function handleGetLeaderboard(ctx: RequestContext): Promise<Response> {
         min_xp: userInfo.xp_required,
         max_xp: null
       } : null,
-      nextLevel: null  // TODO: fetch next level if needed
+      nextLevel: null
     })
   } catch (error) {
     console.error('Get leaderboard error:', error)
