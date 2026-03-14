@@ -231,8 +231,7 @@ class ApiClient {
       success: boolean
       plan_id: number
       plan_name: string
-      days_count: number
-    }>('/api/training-plans/generate', {
+    }>('/api/ai/generate-plan', {
       method: 'POST',
       body: JSON.stringify(data),
     })
@@ -425,6 +424,67 @@ class ApiClient {
     let url = `/api/buddies/${friendshipId}/messages?limit=${limit}`
     if (before) url += `&before=${encodeURIComponent(before)}`
     return this.request<any[]>(url)
+  }
+
+  // =====================================================
+  // AI COACH
+  // =====================================================
+
+  async chatStream(params: {
+    conversationId?: string
+    messages: { role: string; content: string }[]
+    systemPrompt?: string
+    temperature?: number
+  }): Promise<Response> {
+    const headers: Record<string, string> = {
+      'Content-Type': 'application/json',
+    }
+    if (this.token) {
+      headers['Authorization'] = `Bearer ${this.token}`
+    }
+
+    const res = await fetch(`${API_BASE}/api/ai/chat`, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify(params),
+    })
+
+    if (!res.ok) {
+      const error = await res.json().catch(() => ({ error: 'Request failed' }))
+      throw new Error(error.error || 'Chat request failed')
+    }
+
+    return res
+  }
+
+  async getConversations() {
+    return this.request<{
+      id: string
+      title: string
+      created_at: string
+      updated_at: string
+    }[]>('/api/ai/conversations')
+  }
+
+  async getConversation(id: string) {
+    return this.request<{
+      id: string
+      title: string
+      created_at: string
+      updated_at: string
+      messages: {
+        id: string
+        role: 'user' | 'assistant'
+        content: string
+        created_at: string
+      }[]
+    }>(`/api/ai/conversations/${id}`)
+  }
+
+  async deleteConversation(id: string) {
+    return this.request<{ success: boolean }>(`/api/ai/conversations/${id}`, {
+      method: 'DELETE',
+    })
   }
 
   // =====================================================
