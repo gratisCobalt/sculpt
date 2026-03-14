@@ -22,6 +22,7 @@ import LootBoxPage from '@/pages/LootBoxPage'
 import { BottomNav } from '@/components/BottomNav'
 import { Loader } from '@/components/ui/loader'
 import { BadgePopup } from '@/components/BadgePopup'
+import { ErrorBoundary } from '@/components/ErrorBoundary'
 import { useBadgeChecker } from '@/hooks/useBadgeChecker'
 
 const queryClient = new QueryClient({
@@ -193,14 +194,16 @@ function AppRoutes() {
 
 export default function App() {
   return (
-    <QueryClientProvider client={queryClient}>
-      <AuthProvider>
-        <BrowserRouter>
-          <div className="mobile-container">
-            <AppRoutes />
-          </div>
-        </BrowserRouter>
-      </AuthProvider>
-    </QueryClientProvider>
+    <ErrorBoundary>
+      <QueryClientProvider client={queryClient}>
+        <AuthProvider>
+          <BrowserRouter>
+            <div className="mobile-container">
+              <AppRoutes />
+            </div>
+          </BrowserRouter>
+        </AuthProvider>
+      </QueryClientProvider>
+    </ErrorBoundary>
   )
 }
