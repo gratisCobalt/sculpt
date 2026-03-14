@@ -12,6 +12,7 @@ export interface Env {
   OLLAMA_API_KEY: string
   OLLAMA_MODEL: string
   AI_CHAT_ENCRYPTION_KEY: string
+  ALLOWED_ORIGIN?: string
 }
 
 // Request context with user info
