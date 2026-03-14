@@ -149,7 +149,7 @@ async function handleSearchUsers(ctx: RequestContext): Promise<Response> {
 
   try {
     const query = url.searchParams.get('q') || ''
-    const limit = parseInt(url.searchParams.get('limit') || '20')
+    const limit = Math.min(Math.max(parseInt(url.searchParams.get('limit') || '20'), 1), 100)
 
     if (query.length < 2) {
       return jsonResponse([])

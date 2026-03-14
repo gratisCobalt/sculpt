@@ -20,7 +20,7 @@ async function handleGetLeaderboard(ctx: RequestContext): Promise<Response> {
 
   try {
     const weekStart = startOfWeek()
-    const limit = parseInt(url.searchParams.get('limit') || '50')
+    const limit = Math.min(Math.max(parseInt(url.searchParams.get('limit') || '50'), 1), 100)
 
     // Get leaderboard data (Real Users + Fake Users)
     const result = await env.database.prepare(`

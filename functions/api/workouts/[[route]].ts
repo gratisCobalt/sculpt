@@ -162,7 +162,7 @@ async function handleListWorkouts(ctx: RequestContext): Promise<Response> {
   if (!userId) return errorResponse('Unauthorized', 401)
 
   try {
-    const limit = parseInt(url.searchParams.get('limit') || '20')
+    const limit = Math.min(Math.max(parseInt(url.searchParams.get('limit') || '20'), 1), 100)
 
     const sessions = await env.database.prepare(`
       SELECT * FROM workout_session
