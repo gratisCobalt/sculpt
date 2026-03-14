@@ -104,8 +104,8 @@ async function handleChat(ctx: RequestContext): Promise<Response> {
 
     // Load conversation history (last 100 messages)
     const historyResult = await env.database.prepare(
-      `SELECT role, content_encrypted, content_iv FROM (
-        SELECT role, content_encrypted, content_iv, created_at
+      `SELECT role, content_encrypted, iv FROM (
+        SELECT role, content_encrypted, iv, created_at
         FROM ai_message WHERE conversation_id = ?
         ORDER BY created_at DESC LIMIT ?
       ) sub ORDER BY created_at ASC`
@@ -115,7 +115,7 @@ async function handleChat(ctx: RequestContext): Promise<Response> {
     for (const row of (historyResult.results || []) as Record<string, unknown>[]) {
       const content = await decrypt(
         row.content_encrypted as string,
-        row.content_iv as string,
+        row.iv as string,
         env.AI_CHAT_ENCRYPTION_KEY
       )
       history.push({ role: row.role as AIMessage['role'], content })
@@ -126,7 +126,7 @@ async function handleChat(ctx: RequestContext): Promise<Response> {
     const userEncrypted = await encrypt(userMessage.content, env.AI_CHAT_ENCRYPTION_KEY)
 
     await env.database.prepare(
-      `INSERT INTO ai_message (id, conversation_id, role, content_encrypted, content_iv, created_at)
+      `INSERT INTO ai_message (id, conversation_id, role, content_encrypted, iv, created_at)
        VALUES (?, ?, 'user', ?, ?, ?)`
     ).bind(userMsgId, conversationId, userEncrypted.ciphertext, userEncrypted.iv, now).run()
 
@@ -199,7 +199,7 @@ async function handleChat(ctx: RequestContext): Promise<Response> {
               const assistantNow = nowISO()
 
               await env.database.prepare(
-                `INSERT INTO ai_message (id, conversation_id, role, content_encrypted, content_iv, created_at)
+                `INSERT INTO ai_message (id, conversation_id, role, content_encrypted, iv, created_at)
                  VALUES (?, ?, 'assistant', ?, ?, ?)`
               ).bind(assistantMsgId, finalConversationId, assistantEncrypted.ciphertext, assistantEncrypted.iv, assistantNow).run()
 
@@ -284,7 +284,7 @@ async function handleGetConversation(ctx: RequestContext): Promise<Response> {
     }
 
     const messagesResult = await env.database.prepare(
-      `SELECT id, role, content_encrypted, content_iv, created_at
+      `SELECT id, role, content_encrypted, iv, created_at
        FROM ai_message WHERE conversation_id = ?
        ORDER BY created_at ASC`
     ).bind(conversationId).all()
@@ -293,7 +293,7 @@ async function handleGetConversation(ctx: RequestContext): Promise<Response> {
     for (const row of (messagesResult.results || []) as Record<string, unknown>[]) {
       const content = await decrypt(
         row.content_encrypted as string,
-        row.content_iv as string,
+        row.iv as string,
         env.AI_CHAT_ENCRYPTION_KEY
       )
       messages.push({
@@ -394,18 +394,24 @@ Verfügbare Übungen: ${exerciseNames.join(', ')}
 
 WICHTIG: Antworte NUR mit validem JSON in folgendem Format (kein Markdown, kein Text davor oder danach):
 {
-  "name": "Planname",
+  "name": "Plan Name (English)",
+  "name_de": "Plan Name (Deutsch)",
+  "description": "Short description in English",
+  "description_de": "Kurze Beschreibung auf Deutsch",
   "days": [
     {
       "day_number": 1,
-      "name": "Tagesname",
+      "name": "Day Name",
+      "name_de": "Tagesname",
+      "focus_description": "Brust, Schultern, Trizeps",
       "exercises": [
         {
           "exercise_name": "Exakter Name der Übung aus der Liste",
           "sets": 3,
           "min_reps": 8,
           "max_reps": 12,
-          "order_index": 1
+          "rest_seconds": 90,
+          "notes": "Kontrollierte Bewegung"
         }
       ]
     }
@@ -434,15 +440,21 @@ Verwende NUR Übungen aus der obigen Liste. Die exercise_name müssen exakt mit 
 
     let planData: {
       name: string
+      name_de?: string
+      description?: string
+      description_de?: string
       days: Array<{
         day_number: number
         name: string
+        name_de?: string
+        focus_description?: string
         exercises: Array<{
           exercise_name: string
           sets: number
           min_reps: number
           max_reps: number
-          order_index: number
+          rest_seconds?: number
+          notes?: string
         }>
       }>
     }
@@ -454,13 +466,17 @@ Verwende NUR Übungen aus der obigen Liste. Die exercise_name müssen exakt mit 
     }
 
     const now = nowISO()
-    const planId = generateUUID()
 
-    // Insert training plan
-    await env.database.prepare(
-      `INSERT INTO training_plan (id, name, days_per_week, is_system_plan, created_at, updated_at)
-       VALUES (?, ?, ?, 0, ?, ?)`
-    ).bind(planId, planData.name, training_frequency, now, now).run()
+    // Insert training plan (INTEGER AUTOINCREMENT — don't provide id)
+    const planResult = await env.database.prepare(
+      `INSERT INTO training_plan (name, name_de, description, description_de, created_by_id, is_system_plan, days_per_week, created_at, updated_at)
+       VALUES (?, ?, ?, ?, ?, 0, ?, ?, ?)`
+    ).bind(
+      planData.name, planData.name_de || null, planData.description || null, planData.description_de || null,
+      userId, training_frequency, now, now
+    ).run()
+
+    const planId = planResult.meta.last_row_id
 
     // Build exercise name → id lookup (case-insensitive)
     const exerciseLookup = new Map<string, unknown>()
@@ -470,14 +486,15 @@ Verwende NUR Übungen aus der obigen Liste. Die exercise_name müssen exakt mit 
 
     // Insert days and exercises
     for (const day of planData.days) {
-      const dayId = generateUUID()
-
-      await env.database.prepare(
-        `INSERT INTO training_plan_day (id, training_plan_id, day_number, name, created_at)
+      const dayResult = await env.database.prepare(
+        `INSERT INTO training_plan_day (training_plan_id, day_number, name, name_de, focus_description)
          VALUES (?, ?, ?, ?, ?)`
-      ).bind(dayId, planId, day.day_number, day.name, now).run()
+      ).bind(planId, day.day_number, day.name, day.name_de || null, day.focus_description || null).run()
 
-      for (const exercise of day.exercises) {
+      const dayId = dayResult.meta.last_row_id
+
+      for (let i = 0; i < day.exercises.length; i++) {
+        const exercise = day.exercises[i]
         const exerciseId = exerciseLookup.get(exercise.exercise_name.toLowerCase())
 
         if (!exerciseId) {
@@ -485,11 +502,10 @@ Verwende NUR Übungen aus der obigen Liste. Die exercise_name müssen exakt mit 
           continue
         }
 
-        const exerciseEntryId = generateUUID()
         await env.database.prepare(
-          `INSERT INTO training_plan_exercise (id, training_plan_day_id, exercise_id, sets, min_reps, max_reps, order_index)
-           VALUES (?, ?, ?, ?, ?, ?, ?)`
-        ).bind(exerciseEntryId, dayId, exerciseId, exercise.sets, exercise.min_reps, exercise.max_reps, exercise.order_index).run()
+          `INSERT INTO training_plan_exercise (training_plan_day_id, exercise_id, order_index, sets, min_reps, max_reps, rest_seconds, notes)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?)`
+        ).bind(dayId, exerciseId, i + 1, exercise.sets, exercise.min_reps, exercise.max_reps, exercise.rest_seconds || 90, exercise.notes || null).run()
       }
     }
 
@@ -500,10 +516,12 @@ Verwende NUR Übungen aus der obigen Liste. Die exercise_name müssen exakt mit 
 
     await env.database.prepare(
       `INSERT INTO user_training_plan (user_id, training_plan_id, current_day, started_at, is_active)
-       VALUES (?, ?, 1, ?, 1)`
-    ).bind(userId, planId, now).run()
+       VALUES (?, ?, 1, ?, 1)
+       ON CONFLICT(user_id, training_plan_id)
+       DO UPDATE SET is_active = 1, current_day = 1, started_at = ?`
+    ).bind(userId, planId, now, now).run()
 
-    return jsonResponse({ success: true, plan_id: planId, plan_name: planData.name })
+    return jsonResponse({ success: true, plan_id: planId, plan_name: planData.name_de || planData.name })
   } catch (error) {
     console.error('Generate plan error:', error)
     if (error instanceof SyntaxError) {
