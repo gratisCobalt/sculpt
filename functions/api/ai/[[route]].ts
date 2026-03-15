@@ -534,11 +534,12 @@ Verwende NUR Übungen aus der obigen Liste. Die exercise_name müssen exakt mit 
 
     return jsonResponse({ success: true, plan_id: planId, plan_name: planData.name_de || planData.name })
   } catch (error) {
-    console.error('Generate plan error:', error)
+    const detail = error instanceof Error ? error.message : String(error)
+    console.error('Generate plan error:', detail)
     if (error instanceof SyntaxError) {
       return errorResponse('AI returned invalid JSON. Please try again.', 422)
     }
-    return errorResponse('Failed to generate training plan', 500)
+    return errorResponse(`Failed to generate training plan: ${detail}`, 500)
   }
 }
 
