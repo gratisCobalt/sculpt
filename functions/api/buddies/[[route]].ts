@@ -4,7 +4,7 @@ import { jsonResponse, errorResponse, corsResponse, nowISO } from '../../lib/db'
 import { getUserIdFromRequest } from '../../lib/auth'
 
 // Buddy System API Routes
-// Handles: friendships, notifications, activity feed
+// Handles: friendships
 
 interface RequestContext {
   request: Request
@@ -176,119 +176,6 @@ async function handleDeclineRequest(ctx: RequestContext): Promise<Response> {
   }
 }
 
-// GET /api/activity-feed - Get activity feed from buddies
-async function handleGetActivityFeed(ctx: RequestContext): Promise<Response> {
-  const { request, env, url } = ctx
-
-  const userId = await getUserIdFromRequest(request, env)
-  if (!userId) return errorResponse('Unauthorized', 401)
-
-  try {
-    const limit = Math.min(Math.max(parseInt(url.searchParams.get('limit') || '20'), 1), 100)
-
-    const result = await env.database.prepare(`
-      SELECT 
-        afi.id,
-        afi.user_id,
-        u.display_name,
-        u.avatar_url,
-        at.slug as activity_type,
-        at.name_de as activity_name_de,
-        afi.metadata,
-        afi.created_at
-      FROM activity_feed_item afi
-      JOIN app_user u ON afi.user_id = u.id
-      JOIN activity_type at ON afi.activity_type_id = at.id
-      WHERE afi.user_id IN (
-        SELECT CASE WHEN f.requester_id = ? THEN f.addressee_id ELSE f.requester_id END
-        FROM friendship f
-        WHERE (f.requester_id = ? OR f.addressee_id = ?) AND f.status_id = 2
-      )
-      OR afi.user_id = ?
-      ORDER BY afi.created_at DESC
-      LIMIT ?
-    `).bind(userId, userId, userId, userId, limit).all()
-
-    // Parse metadata JSON for each item
-    const items = (result.results || []).map((item: Record<string, unknown>) => ({
-      ...item,
-      metadata: item.metadata ? JSON.parse(item.metadata as string) : {},
-    }))
-
-    return jsonResponse(items)
-  } catch (error) {
-    console.error('Get activity feed error:', error)
-    return errorResponse('Failed to get activity feed', 500)
-  }
-}
-
-// GET /api/notifications - Get user notifications
-async function handleGetNotifications(ctx: RequestContext): Promise<Response> {
-  const { request, env, url } = ctx
-
-  const userId = await getUserIdFromRequest(request, env)
-  if (!userId) return errorResponse('Unauthorized', 401)
-
-  try {
-    const limit = Math.min(Math.max(parseInt(url.searchParams.get('limit') || '50'), 1), 100)
-    const unreadOnly = url.searchParams.get('unread') === 'true'
-
-    let query = `
-      SELECT n.*, nt.code as type_code, nt.icon_name
-      FROM notification n
-      JOIN notification_type nt ON n.notification_type_id = nt.id
-      WHERE n.user_id = ?
-    `
-    const params: unknown[] = [userId]
-
-    if (unreadOnly) {
-      query += ' AND n.is_read = 0'
-    }
-
-    query += ' ORDER BY n.created_at DESC LIMIT ?'
-    params.push(limit)
-
-    const result = await env.database.prepare(query).bind(...params).all()
-
-    return jsonResponse(result.results || [])
-  } catch (error) {
-    console.error('Get notifications error:', error)
-    return errorResponse('Failed to get notifications', 500)
-  }
-}
-
-// POST /api/notifications/read - Mark notifications as read
-async function handleMarkRead(ctx: RequestContext): Promise<Response> {
-  const { request, env } = ctx
-
-  const userId = await getUserIdFromRequest(request, env)
-  if (!userId) return errorResponse('Unauthorized', 401)
-
-  try {
-    const body = await request.json() as { notification_ids?: number[] }
-    const { notification_ids } = body
-
-    if (notification_ids && notification_ids.length > 0) {
-      // Mark specific notifications as read
-      for (const id of notification_ids) {
-        await env.database.prepare(
-          'UPDATE notification SET is_read = 1 WHERE id = ? AND user_id = ?'
-        ).bind(id, userId).run()
-      }
-    } else {
-      // Mark all as read
-      await env.database.prepare(
-        'UPDATE notification SET is_read = 1 WHERE user_id = ?'
-      ).bind(userId).run()
-    }
-
-    return jsonResponse({ success: true })
-  } catch (error) {
-    console.error('Mark notifications read error:', error)
-    return errorResponse('Failed to mark notifications as read', 500)
-  }
-}
-
 // Main request handler
 export const onRequest: PagesFunction<Env> = async (context) => {
   const { request, env } = context
@@ -316,19 +203,6 @@ export const onRequest: PagesFunction<Env> = async (context) => {
   }
   if (request.method === 'POST' && path.match(/^\/api\/buddies\/decline\/\d+$/)) {
     return handleDeclineRequest(ctx)
-  }
-
-  // Activity feed
-  if (request.method === 'GET' && path === '/api/activity-feed') {
-    return handleGetActivityFeed(ctx)
-  }
-
-  // Notifications
-  if (request.method === 'GET' && path === '/api/notifications') {
-    return handleGetNotifications(ctx)
-  }
-  if (request.method === 'POST' && path === '/api/notifications/read') {
-    return handleMarkRead(ctx)
   }
 
   return errorResponse('Not found', 404)

@@ -233,8 +233,10 @@ async function handleGoogleAuth(ctx: RequestContext): Promise<Response> {
     
     return jsonResponse({ user: createSafeUserResponse(user!), token, isNewUser: true })
   } catch (error) {
-    console.error('Google auth error:', error)
-    return errorResponse('Google authentication failed', 500)
+    console.error('Google auth error:', error instanceof Error ? error.message : error)
+    console.error('Google auth stack:', error instanceof Error ? error.stack : 'no stack')
+    const detail = error instanceof Error ? error.message : 'Unknown error'
+    return errorResponse(`Google authentication failed: ${detail}`, 500)
   }
 }
 

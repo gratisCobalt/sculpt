@@ -3,7 +3,7 @@ import type { Env } from '../../lib/types'
 import { jsonResponse, errorResponse, corsResponse, startOfWeek } from '../../lib/db'
 import { getUserIdFromRequest } from '../../lib/auth'
 
-// Leaderboard & Level Routes
+// Leaderboard Routes
 
 interface RequestContext {
   request: Request
@@ -109,130 +109,6 @@ async function handleGetLeaderboard(ctx: RequestContext): Promise<Response> {
   }
 }
 
-
-// GET /api/leagues - Get all leagues
-async function handleGetLeagues(ctx: RequestContext): Promise<Response> {
-  const { env } = ctx
-
-  try {
-    const result = await env.database.prepare(`
-      SELECT * FROM league_tier ORDER BY tier_order
-    `).all()
-
-    return jsonResponse(result.results || [])
-  } catch (error) {
-    console.error('Get leagues error:', error)
-    return errorResponse('Failed to get leagues', 500)
-  }
-}
-
-// GET /api/levels - Get all level definitions
-async function handleGetLevels(ctx: RequestContext): Promise<Response> {
-  const { env } = ctx
-
-  try {
-    const result = await env.database.prepare(`
-      SELECT * FROM user_level ORDER BY level
-    `).all()
-
-    return jsonResponse(result.results || [])
-  } catch (error) {
-    console.error('Get levels error:', error)
-    return errorResponse('Failed to get levels', 500)
-  }
-}
-
-// GET /api/users/me/level - Get user's level info
-async function handleGetUserLevel(ctx: RequestContext): Promise<Response> {
-  const { request, env } = ctx
-
-  const userId = await getUserIdFromRequest(request, env)
-  if (!userId) return errorResponse('Unauthorized', 401)
-
-  try {
-    const user = await env.database.prepare(
-      'SELECT current_level, xp_total FROM app_user WHERE id = ?'
-    ).bind(userId).first<{ current_level: number; xp_total: number }>()
-
-    if (!user) {
-      return errorResponse('User not found', 404)
-    }
-
-    // Get current level details
-    const currentLevel = await env.database.prepare(
-      'SELECT * FROM user_level WHERE level = ?'
-    ).bind(user.current_level).first()
-
-    // Get next level details
-    const nextLevel = await env.database.prepare(
-      'SELECT * FROM user_level WHERE level = ?'
-    ).bind(user.current_level + 1).first<Record<string, unknown>>()
-
-    // Calculate progress to next level
-    const currentLevelXp = (currentLevel as Record<string, unknown>)?.xp_required || 0
-    const nextLevelXp = nextLevel?.xp_required || (currentLevelXp as number) + 1000
-    const xpProgress = user.xp_total - (currentLevelXp as number)
-    const xpNeeded = (nextLevelXp as number) - (currentLevelXp as number)
-    const progressPercent = Math.min(100, Math.round((xpProgress / xpNeeded) * 100))
-
-    return jsonResponse({
-      current_level: user.current_level,
-      xp_total: user.xp_total,
-      level_info: currentLevel,
-      next_level: nextLevel,
-      xp_progress: xpProgress,
-      xp_needed: xpNeeded,
-      progress_percent: progressPercent,
-    })
-  } catch (error) {
-    console.error('Get user level error:', error)
-    return errorResponse('Failed to get user level', 500)
-  }
-}
-
-// GET /api/badges - Get all badges
-async function handleGetBadges(ctx: RequestContext): Promise<Response> {
-  const { env } = ctx
-
-  try {
-    const result = await env.database.prepare(`
-      SELECT b.*, br.code as rarity_code, br.name_de as rarity_name, br.color_hex
-      FROM badge b
-      JOIN badge_rarity br ON b.rarity_id = br.id
-      ORDER BY br.id, b.threshold_value
-    `).all()
-
-    return jsonResponse(result.results || [])
-  } catch (error) {
-    console.error('Get badges error:', error)
-    return errorResponse('Failed to get badges', 500)
-  }
-}
-
-// GET /api/users/me/badges - Get user's earned badges
-async function handleGetUserBadges(ctx: RequestContext): Promise<Response> {
-  const { request, env } = ctx
-
-  const userId = await getUserIdFromRequest(request, env)
-  if (!userId) return errorResponse('Unauthorized', 401)
-
-  try {
-    const result = await env.database.prepare(`
-      SELECT ub.earned_at, b.*, br.code as rarity_code, br.name_de as rarity_name, br.color_hex
-      FROM user_badge ub
-      JOIN badge b ON ub.badge_id = b.id
-      JOIN badge_rarity br ON b.rarity_id = br.id
-      WHERE ub.user_id = ?
-      ORDER BY ub.earned_at DESC
-    `).bind(userId).all()
-
-    return jsonResponse(result.results || [])
-  } catch (error) {
-    console.error('Get user badges error:', error)
-    return errorResponse('Failed to get user badges', 500)
-  }
-}
-
 // Main request handler
 export const onRequest: PagesFunction<Env> = async (context) => {
   const { request, env } = context
@@ -249,21 +125,6 @@ export const onRequest: PagesFunction<Env> = async (context) => {
     // Leaderboard routes
     if (path === '/api/leaderboard' || path === '/api/leaderboard/weekly') {
       return handleGetLeaderboard(ctx)
-    }
-    if (path === '/api/leagues') {
-      return handleGetLeagues(ctx)
-    }
-    if (path === '/api/levels') {
-      return handleGetLevels(ctx)
-    }
-    if (path === '/api/users/me/level') {
-      return handleGetUserLevel(ctx)
-    }
-    if (path === '/api/badges') {
-      return handleGetBadges(ctx)
-    }
-    if (path === '/api/users/me/badges') {
-      return handleGetUserBadges(ctx)
     }
   }
 

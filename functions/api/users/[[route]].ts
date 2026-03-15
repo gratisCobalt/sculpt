@@ -171,6 +171,54 @@ async function handleSearchUsers(ctx: RequestContext): Promise<Response> {
   }
 }
 
+// GET /api/users/me/level - Get user's level info
+async function handleGetUserLevel(ctx: RequestContext): Promise<Response> {
+  const { request, env } = ctx
+
+  const userId = await getUserIdFromRequest(request, env)
+  if (!userId) return errorResponse('Unauthorized', 401)
+
+  try {
+    const user = await env.database.prepare(
+      'SELECT current_level, xp_total FROM app_user WHERE id = ?'
+    ).bind(userId).first<{ current_level: number; xp_total: number }>()
+
+    if (!user) {
+      return errorResponse('User not found', 404)
+    }
+
+    // Get current level details
+    const currentLevel = await env.database.prepare(
+      'SELECT * FROM user_level WHERE level = ?'
+    ).bind(user.current_level).first()
+
+    // Get next level details
+    const nextLevel = await env.database.prepare(
+      'SELECT * FROM user_level WHERE level = ?'
+    ).bind(user.current_level + 1).first<Record<string, unknown>>()
+
+    // Calculate progress to next level
+    const currentLevelXp = (currentLevel as Record<string, unknown>)?.xp_required || 0
+    const nextLevelXp = nextLevel?.xp_required || (currentLevelXp as number) + 1000
+    const xpProgress = user.xp_total - (currentLevelXp as number)
+    const xpNeeded = (nextLevelXp as number) - (currentLevelXp as number)
+    const progressPercent = Math.min(100, Math.round((xpProgress / xpNeeded) * 100))
+
+    return jsonResponse({
+      current_level: user.current_level,
+      xp_total: user.xp_total,
+      level_info: currentLevel,
+      next_level: nextLevel,
+      xp_progress: xpProgress,
+      xp_needed: xpNeeded,
+      progress_percent: progressPercent,
+    })
+  } catch (error) {
+    console.error('Get user level error:', error)
+    return errorResponse('Failed to get user level', 500)
+  }
+}
+
 // GET /api/users/me/badges - Get user's earned badges
 async function handleGetUserBadges(ctx: RequestContext): Promise<Response> {
   const { request, env } = ctx
@@ -220,6 +268,10 @@ export const onRequest: PagesFunction<Env> = async (context) => {
     if (request.method === 'GET') {
       return handleGetFocusAreas(ctx)
     }
+  }
+
+  if (request.method === 'GET' && path === '/me/level') {
+    return handleGetUserLevel(ctx)
   }
 
   if (request.method === 'GET' && path === '/me/badges') {
