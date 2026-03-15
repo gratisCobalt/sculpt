@@ -308,23 +308,28 @@ export default function TrainingPlanPage() {
     onMutate: async (newIds) => {
       await queryClient.cancelQueries({ queryKey: ['trainingPlan', planId] })
       const previous = queryClient.getQueryData(['trainingPlan', planId])
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      queryClient.setQueryData(['trainingPlan', planId], (old: Record<string, any>) => {
-        if (!old) return old
-        return {
-          ...old,
-          days: old.days?.map((day: PlanDay) => {
-            if (day.id !== effectiveSelectedDayId) return day
-            const reordered = newIds
-              .map((id) => day.exercises.find((e) => e.id === id))
-              .filter(Boolean)
-            return { ...day, exercises: reordered }
-          }),
-        }
-      })
+      try {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        queryClient.setQueryData(['trainingPlan', planId], (old: any) => {
+          if (!old?.days) return old
+          return {
+            ...old,
+            days: old.days.map((day: PlanDay) => {
+              if (day.id !== effectiveSelectedDayId) return day
+              const reordered = newIds
+                .map((id: number) => day.exercises.find((e: PlanExercise) => e.id === id))
+                .filter(Boolean)
+              return { ...day, exercises: reordered }
+            }),
+          }
+        })
+      } catch (e) {
+        console.error('Optimistic update failed:', e)
+      }
       return { previous }
     },
-    onError: (_err, _vars, context) => {
+    onError: (err, _vars, context) => {
+      console.error('Reorder failed:', err)
       if (context?.previous) {
         queryClient.setQueryData(['trainingPlan', planId], context.previous)
       }
