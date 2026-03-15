@@ -240,6 +240,33 @@ class ApiClient {
     return this.request<any>('/api/users/me/training-plan')
   }
 
+  async updatePlanExercise(planId: number, exerciseId: number, data: { sets?: number; min_reps?: number; max_reps?: number; rest_seconds?: number }) {
+    return this.request<{ success: boolean }>(`/api/training-plans/${planId}/exercises/${exerciseId}`, {
+      method: 'PATCH',
+      body: JSON.stringify(data),
+    })
+  }
+
+  async deletePlanExercise(planId: number, exerciseId: number) {
+    return this.request<{ success: boolean }>(`/api/training-plans/${planId}/exercises/${exerciseId}`, {
+      method: 'DELETE',
+    })
+  }
+
+  async addPlanExercise(planId: number, dayId: number, data: { exercise_id: number; sets?: number; min_reps?: number; max_reps?: number }) {
+    return this.request<{ success: boolean; id: number }>(`/api/training-plans/${planId}/days/${dayId}/exercises`, {
+      method: 'POST',
+      body: JSON.stringify(data),
+    })
+  }
+
+  async reorderPlanExercises(planId: number, dayId: number, exerciseIds: number[]) {
+    return this.request<{ success: boolean }>(`/api/training-plans/${planId}/days/${dayId}/exercises/reorder`, {
+      method: 'PUT',
+      body: JSON.stringify({ exercise_ids: exerciseIds }),
+    })
+  }
+
   async generateTrainingPlan(data: {
     fitness_goal: string
     experience_level: string
