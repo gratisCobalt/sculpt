@@ -65,10 +65,12 @@ export default function ShopPage() {
   })
 
   const getInventoryCount = (itemCode: string) => {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const item = inventory.find((i: any) => i.code === itemCode)
     return item?.quantity || 0
   }
 
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const groupedItems = shopItems.reduce((acc: Record<string, any[]>, item: any) => {
     const cat = item.category_code || 'other'
     if (!acc[cat]) acc[cat] = []
@@ -112,6 +114,7 @@ export default function ShopPage() {
                   <h2 className="font-semibold">{categoryNames[category] || category}</h2>
                 </div>
                 <div className="space-y-3">
+                  {/* eslint-disable-next-line @typescript-eslint/no-explicit-any */}
                   {items.map((item: any) => {
                     const ItemIcon = itemIcons[item.icon_name] || Gift
                     const owned = getInventoryCount(item.code)

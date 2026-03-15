@@ -54,6 +54,7 @@ export default function DashboardPage() {
     enabled: !!user,
   })
 
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const unopenedBoxes = lootBoxes?.filter((b: any) => !b.is_opened)?.length || 0
 
   // Fetch exercise progress for cards (last 30 days with category filter)

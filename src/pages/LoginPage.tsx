@@ -5,8 +5,6 @@ import { Button } from '@/components/ui/button'
 import { useAuth } from '@/hooks/useAuth'
 import { useGoogleAuth } from '@/hooks/useGoogleAuth'
 
-const IS_DEV = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1'
-
 type AuthMode = 'login' | 'register'
 
 export default function LoginPage() {
@@ -88,19 +86,6 @@ export default function LoginPage() {
       }
     } catch (err) {
       console.error(`${mode} error:`, err)
-      setError(err instanceof Error ? err.message : 'Anmeldung fehlgeschlagen')
-    } finally {
-      setLoading(false)
-    }
-  }
-
-  const handleDevLogin = async () => {
-    setLoading(true)
-    setError(null)
-    try {
-      await signInWithEmail('test@sculpt-app.de', 'TestUser123!')
-    } catch (err) {
-      console.error('Dev login error:', err)
       setError(err instanceof Error ? err.message : 'Anmeldung fehlgeschlagen')
     } finally {
       setLoading(false)
@@ -307,27 +292,6 @@ export default function LoginPage() {
           )}
         </p>
 
-        {/* Dev Login (only in development) */}
-        {IS_DEV && (
-          <>
-            <div className="flex items-center gap-4 my-2">
-              <div className="flex-1 h-px bg-[hsl(var(--border))]" />
-              <span className="text-xs text-[hsl(var(--muted-foreground))]">dev</span>
-              <div className="flex-1 h-px bg-[hsl(var(--border))]" />
-            </div>
-            <Button
-              type="button"
-              variant="glass"
-              size="lg"
-              className="w-full"
-              onClick={handleDevLogin}
-              disabled={loading}
-            >
-              <Dumbbell className="w-5 h-5" />
-              Dev Login (Test User)
-            </Button>
-          </>
-        )}
       </form>
     </div>
   )

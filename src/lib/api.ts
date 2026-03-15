@@ -50,6 +50,7 @@ class ApiClient {
   // =====================================================
 
   async login(email: string, password: string) {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const data = await this.request<{ user: any; token: string }>('/api/auth/login', {
       method: 'POST',
       body: JSON.stringify({ email, password }),
@@ -59,6 +60,7 @@ class ApiClient {
   }
 
   async register(email: string, password: string, displayName: string) {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const data = await this.request<{ user: any; token: string }>('/api/auth/register', {
       method: 'POST',
       body: JSON.stringify({ email, password, displayName }),
@@ -67,7 +69,9 @@ class ApiClient {
     return data
   }
 
-  async getMe() {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  async getMe(): Promise<any> {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     return this.request<any>('/api/auth/me')
   }
 
@@ -81,10 +85,11 @@ class ApiClient {
 
   async googleAuth(idToken: string) {
     const data = await this.request<{ 
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       user: any
       token: string
       isNewUser: boolean
-      linked?: boolean 
+      linked?: boolean
     }>('/api/auth/google', {
       method: 'POST',
       body: JSON.stringify({ idToken }),
@@ -94,6 +99,7 @@ class ApiClient {
   }
 
   async linkGoogleAccount(idToken: string) {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     return this.request<{ success: boolean; user: any }>('/api/auth/google/link', {
       method: 'POST',
       body: JSON.stringify({ idToken }),
@@ -101,6 +107,7 @@ class ApiClient {
   }
 
   async unlinkGoogleAccount() {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     return this.request<{ success: boolean; user: any }>('/api/auth/google/unlink', {
       method: 'POST',
     })
@@ -119,6 +126,7 @@ class ApiClient {
     experience_level?: string
     onboarding_completed?: boolean
   }) {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     return this.request<any>('/api/users/me', {
       method: 'PATCH',
       body: JSON.stringify(data),
@@ -152,6 +160,7 @@ class ApiClient {
   async getExerciseProgress(period: number = 7, bodyPart?: string) {
     const params = new URLSearchParams({ period: period.toString() })
     if (bodyPart) params.append('bodyPart', bodyPart)
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     return this.request<any[]>(`/api/dashboard/exercise-progress?${params}`)
   }
 
@@ -164,6 +173,7 @@ class ApiClient {
     if (options.search) params.append('search', options.search)
     if (options.bodyPart) params.append('bodyPart', options.bodyPart)
     if (options.limit) params.append('limit', options.limit.toString())
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     return this.request<any[]>(`/api/exercises?${params}`)
   }
 
@@ -194,6 +204,7 @@ class ApiClient {
   }
 
   async getExercise(id: number) {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     return this.request<any>(`/api/exercises/${id}`)
   }
 
@@ -209,14 +220,17 @@ class ApiClient {
   // =====================================================
 
   async getTrainingPlans() {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     return this.request<any[]>('/api/training-plans')
   }
 
   async getTrainingPlan(id: number) {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     return this.request<any>(`/api/training-plans/${id}`)
   }
 
   async getUserTrainingPlan() {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     return this.request<any>('/api/users/me/training-plan')
   }
 
@@ -231,8 +245,7 @@ class ApiClient {
       success: boolean
       plan_id: number
       plan_name: string
-      days_count: number
-    }>('/api/training-plans/generate', {
+    }>('/api/ai/generate-plan', {
       method: 'POST',
       body: JSON.stringify(data),
     })
@@ -253,6 +266,7 @@ class ApiClient {
       rpe?: number
     }[]
   }) {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     return this.request<any>('/api/workouts', {
       method: 'POST',
       body: JSON.stringify(data),
@@ -260,6 +274,7 @@ class ApiClient {
   }
 
   async getWorkouts(limit: number = 20) {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     return this.request<any[]>(`/api/workouts?limit=${limit}`)
   }
 
@@ -268,6 +283,7 @@ class ApiClient {
   // =====================================================
 
   async updateWorkoutSet(setId: number, data: { weight_kg?: number; reps?: number }) {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     return this.request<any>(`/api/workout-sets/${setId}`, {
       method: 'PATCH',
       body: JSON.stringify(data),
@@ -285,14 +301,17 @@ class ApiClient {
   // =====================================================
 
   async getAllBadges() {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     return this.request<any[]>('/api/badges')
   }
 
   async getUserBadges() {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     return this.request<any[]>('/api/users/me/badges')
   }
 
   async checkForNewBadges() {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     return this.request<{ newBadges: any[] }>('/api/users/me/badges/check')
   }
 
@@ -307,10 +326,12 @@ class ApiClient {
   // =====================================================
 
   async getBodyParts() {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     return this.request<any[]>('/api/body-parts')
   }
 
   async getGenders() {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     return this.request<any[]>('/api/genders')
   }
 
@@ -319,14 +340,17 @@ class ApiClient {
   // =====================================================
 
   async searchUsers(query: string) {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     return this.request<any[]>(`/api/users/search?q=${encodeURIComponent(query)}`)
   }
 
   async getBuddies() {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     return this.request<any[]>('/api/buddies')
   }
 
   async sendFriendRequest(userId: string) {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     return this.request<any>('/api/buddies/request', {
       method: 'POST',
       body: JSON.stringify({ user_id: userId }),
@@ -357,6 +381,7 @@ class ApiClient {
   // =====================================================
 
   async getNotifications(unreadOnly = false, limit = 50) {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     return this.request<any[]>(`/api/notifications?unread=${unreadOnly}&limit=${limit}`)
   }
 
@@ -372,6 +397,7 @@ class ApiClient {
   // =====================================================
 
   async getActivityFeed(limit = 30) {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     return this.request<any[]>(`/api/activity-feed?limit=${limit}`)
   }
 
@@ -387,6 +413,7 @@ class ApiClient {
   // =====================================================
 
   async getEncryptionKeys() {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     return this.request<any>('/api/encryption/keys')
   }
 
@@ -403,6 +430,7 @@ class ApiClient {
   }
 
   async getBuddyKeys(friendshipId: number) {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     return this.request<any>(`/api/buddies/${friendshipId}/keys`)
   }
 
@@ -415,6 +443,7 @@ class ApiClient {
     referenceType?: string
     referenceId?: number
   }) {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     return this.request<any>(`/api/buddies/${friendshipId}/messages`, {
       method: 'POST',
       body: JSON.stringify(message),
@@ -424,7 +453,69 @@ class ApiClient {
   async getMessages(friendshipId: number, limit = 50, before?: string) {
     let url = `/api/buddies/${friendshipId}/messages?limit=${limit}`
     if (before) url += `&before=${encodeURIComponent(before)}`
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     return this.request<any[]>(url)
+  }
+
+  // =====================================================
+  // AI COACH
+  // =====================================================
+
+  async chatStream(params: {
+    conversationId?: string
+    messages: { role: string; content: string }[]
+    systemPrompt?: string
+    temperature?: number
+  }): Promise<Response> {
+    const headers: Record<string, string> = {
+      'Content-Type': 'application/json',
+    }
+    if (this.token) {
+      headers['Authorization'] = `Bearer ${this.token}`
+    }
+
+    const res = await fetch(`${API_BASE}/api/ai/chat`, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify(params),
+    })
+
+    if (!res.ok) {
+      const error = await res.json().catch(() => ({ error: 'Request failed' }))
+      throw new Error(error.error || 'Chat request failed')
+    }
+
+    return res
+  }
+
+  async getConversations() {
+    return this.request<{
+      id: string
+      title: string
+      created_at: string
+      updated_at: string
+    }[]>('/api/ai/conversations')
+  }
+
+  async getConversation(id: string) {
+    return this.request<{
+      id: string
+      title: string
+      created_at: string
+      updated_at: string
+      messages: {
+        id: string
+        role: 'user' | 'assistant'
+        content: string
+        created_at: string
+      }[]
+    }>(`/api/ai/conversations/${id}`)
+  }
+
+  async deleteConversation(id: string) {
+    return this.request<{ success: boolean }>(`/api/ai/conversations/${id}`, {
+      method: 'DELETE',
+    })
   }
 
   // =====================================================
@@ -454,10 +545,12 @@ class ApiClient {
   // =====================================================
 
   async getShopItems() {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     return this.request<any[]>('/api/shop')
   }
 
   async getInventory() {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     return this.request<any[]>('/api/inventory')
   }
 
@@ -475,6 +568,7 @@ class ApiClient {
   }
 
   async getLootBoxes() {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     return this.request<any[]>('/api/lootboxes')
   }
 

@@ -2,7 +2,7 @@
 import type { Env } from '../../lib/types'
 import { jsonResponse, errorResponse, corsResponse, generateUUID, nowISO } from '../../lib/db'
 import { createToken, verifyPassword, getUserIdFromRequest, hashPassword } from '../../lib/auth'
-import { verifyGoogleIdToken, type GoogleUser } from '../../lib/google'
+import { verifyGoogleIdToken } from '../../lib/google'
 
 // Auth API Routes for Cloudflare Pages Functions
 // Handles: POST /api/auth/register, POST /api/auth/login, GET /api/auth/me
@@ -81,16 +81,11 @@ async function handleLogin(ctx: RequestContext): Promise<Response> {
       return errorResponse('Invalid credentials', 401)
     }
     
-    // For dev mode, accept test user with specific password
-    // In production, always verify password hash
-    let isValidPassword = false
-    
-    if (email === 'test@sculpt-app.de' && password === 'TestUser123!') {
-      isValidPassword = true
-    } else if (user.password_hash && typeof user.password_hash === 'string') {
-      isValidPassword = await verifyPassword(password, user.password_hash)
+    if (!user.password_hash || typeof user.password_hash !== 'string') {
+      return errorResponse('Invalid credentials', 401)
     }
-    
+
+    const isValidPassword = await verifyPassword(password, user.password_hash)
     if (!isValidPassword) {
       return errorResponse('Invalid credentials', 401)
     }
@@ -99,8 +94,9 @@ async function handleLogin(ctx: RequestContext): Promise<Response> {
     const token = await createToken(user.id as string, env.JWT_SECRET)
     
     // Remove password hash from response
-    const { password_hash: _, ...safeUser } = user
-    
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+    const { password_hash: _hash, ...safeUser } = user
+
     return jsonResponse({ user: safeUser, token })
   } catch (error) {
     console.error('Login error:', error)
@@ -111,26 +107,27 @@ async function handleLogin(ctx: RequestContext): Promise<Response> {
 // GET /api/auth/me
 async function handleMe(ctx: RequestContext): Promise<Response> {
   const { request, env } = ctx
-  
+
   try {
     const userId = await getUserIdFromRequest(request, env)
     if (!userId) {
       return errorResponse('Unauthorized', 401)
     }
-    
+
     const user = await env.database.prepare(`
       SELECT u.*, g.code as gender_code, g.name_de as gender_name
       FROM app_user u
       LEFT JOIN gender g ON u.gender_id = g.id
       WHERE u.id = ?
     `).bind(userId).first<Record<string, unknown>>()
-    
+
     if (!user) {
       return errorResponse('User not found', 404)
     }
-    
+
     // Remove password hash from response
-    const { password_hash: _, ...safeUser } = user
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+    const { password_hash: _hash, ...safeUser } = user
     
     return jsonResponse(safeUser)
   } catch (error) {
@@ -145,7 +142,8 @@ async function handleMe(ctx: RequestContext): Promise<Response> {
 
 // Helper to create safe user response
 function createSafeUserResponse(user: Record<string, unknown>) {
-  const { password_hash: _, ...safeUser } = user
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  const { password_hash: _pw, ...safeUser } = user
   return safeUser
 }
 

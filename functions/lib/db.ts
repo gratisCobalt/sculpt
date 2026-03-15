@@ -63,13 +63,18 @@ export function startOfWeek(): string {
   return monday.toISOString()
 }
 
+// Get CORS origin from environment or default to wildcard
+export function getCorsOrigin(env?: { ALLOWED_ORIGIN?: string }): string {
+  return env?.ALLOWED_ORIGIN || '*'
+}
+
 // JSON response helper
-export function jsonResponse(data: unknown, status = 200): Response {
+export function jsonResponse(data: unknown, status = 200, env?: { ALLOWED_ORIGIN?: string }): Response {
   return new Response(JSON.stringify(data), {
     status,
     headers: {
       'Content-Type': 'application/json',
-      'Access-Control-Allow-Origin': '*',
+      'Access-Control-Allow-Origin': getCorsOrigin(env),
       'Access-Control-Allow-Methods': 'GET, POST, PUT, PATCH, DELETE, OPTIONS',
       'Access-Control-Allow-Headers': 'Content-Type, Authorization',
     },
@@ -77,16 +82,16 @@ export function jsonResponse(data: unknown, status = 200): Response {
 }
 
 // Error response helper
-export function errorResponse(message: string, status = 500): Response {
-  return jsonResponse({ error: message }, status)
+export function errorResponse(message: string, status = 500, env?: { ALLOWED_ORIGIN?: string }): Response {
+  return jsonResponse({ error: message }, status, env)
 }
 
 // Handle CORS preflight
-export function corsResponse(): Response {
+export function corsResponse(env?: { ALLOWED_ORIGIN?: string }): Response {
   return new Response(null, {
     status: 204,
     headers: {
-      'Access-Control-Allow-Origin': '*',
+      'Access-Control-Allow-Origin': getCorsOrigin(env),
       'Access-Control-Allow-Methods': 'GET, POST, PUT, PATCH, DELETE, OPTIONS',
       'Access-Control-Allow-Headers': 'Content-Type, Authorization',
       'Access-Control-Max-Age': '86400',

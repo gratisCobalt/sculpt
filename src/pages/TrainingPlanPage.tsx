@@ -11,7 +11,27 @@ import { SkeletonList } from '@/components/ui/loader'
 import { cn } from '@/lib/utils'
 import { useAuth } from '@/hooks/useAuth'
 import { api } from '@/lib/api'
-import { useState, useEffect } from 'react'
+import { useState, useMemo } from 'react'
+
+interface PlanExerciseInfo {
+  name: string
+  name_de?: string
+}
+
+interface PlanExercise {
+  id: number
+  exercise?: PlanExerciseInfo
+  sets: number
+  min_reps: number
+  max_reps: number
+}
+
+interface PlanDay {
+  id: number
+  day_number: number
+  name: string
+  exercises: PlanExercise[]
+}
 
 export default function TrainingPlanPage() {
   const navigate = useNavigate()
@@ -26,16 +46,10 @@ export default function TrainingPlanPage() {
   })
 
   const plan = planData
-  const days = plan?.days || []
-  const selectedDay = days.find((d: any) => d.id === selectedDayId)
+  const days: PlanDay[] = useMemo(() => plan?.days || [], [plan?.days])
+  const effectiveSelectedDayId = selectedDayId ?? (days.length > 0 ? days[0].id : null)
+  const selectedDay = days.find((d) => d.id === effectiveSelectedDayId)
   const exercises = selectedDay?.exercises || []
-
-  // Set initial selected day
-  useEffect(() => {
-    if (days.length > 0 && !selectedDayId) {
-      setSelectedDayId(days[0].id)
-    }
-  }, [days, selectedDayId])
 
   if (isLoading) {
     return (
@@ -75,13 +89,13 @@ export default function TrainingPlanPage() {
       {days.length > 0 && (
         <div className="px-6 mb-4">
           <div className="flex gap-2 overflow-x-auto no-scrollbar pb-2">
-            {days.map((day: any) => (
+            {days.map((day) => (
               <button
                 key={day.id}
                 onClick={() => setSelectedDayId(day.id)}
                 className={cn(
                   'px-4 py-3 rounded-xl whitespace-nowrap transition-all duration-200 flex flex-col items-start',
-                  selectedDayId === day.id
+                  effectiveSelectedDayId === day.id
                     ? 'gradient-primary text-gray-900'
                     : 'glass glass-hover'
                 )}
@@ -99,8 +113,8 @@ export default function TrainingPlanPage() {
         <Button
           size="lg"
           className="w-full"
-          onClick={() => navigate(`/guided-training?dayId=${selectedDayId}`)}
-          disabled={!selectedDayId || exercises.length === 0}
+          onClick={() => navigate(`/guided-training?dayId=${effectiveSelectedDayId}`)}
+          disabled={!effectiveSelectedDayId || exercises.length === 0}
         >
           <Play className="w-5 h-5 mr-2" />
           Training starten
@@ -113,7 +127,7 @@ export default function TrainingPlanPage() {
 
         {exercises.length > 0 ? (
           <div className="space-y-3">
-            {exercises.map((exercise: any, index: number) => (
+            {exercises.map((exercise, index) => (
               <Card key={exercise.id}>
                 <CardContent className="p-4">
                   <div className="flex items-center gap-3">

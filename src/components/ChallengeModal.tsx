@@ -8,9 +8,16 @@ import { cn } from '@/lib/utils'
 import { api } from '@/lib/api'
 import type { ChallengeType } from '@/lib/api'
 
+interface BuddyInfo {
+  id: string
+  display_name: string
+  avatar_url?: string | null
+  friendship_id?: number
+}
+
 interface ChallengeModalProps {
-  buddy: any
-  buddies: any[]
+  buddy: BuddyInfo
+  buddies: BuddyInfo[]
   onClose: () => void
   onSuccess: () => void
 }
@@ -22,7 +29,7 @@ const DURATION_PRESETS = [
   { id: 'custom', label: 'Eigener Zeitraum', xp: 150 },
 ]
 
-const CHALLENGE_TYPE_ICONS: Record<string, any> = {
+const CHALLENGE_TYPE_ICONS: Record<string, typeof TrendingUp> = {
   total_volume: TrendingUp,
   workout_count: Dumbbell,
   exercise_volume: Target,

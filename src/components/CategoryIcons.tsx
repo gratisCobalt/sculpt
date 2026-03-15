@@ -1,3 +1,4 @@
+/* eslint-disable react-refresh/only-export-components */
 import { Dumbbell } from 'lucide-react'
 import {
     GiBiceps,

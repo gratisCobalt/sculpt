@@ -184,7 +184,7 @@ async function handleGetActivityFeed(ctx: RequestContext): Promise<Response> {
   if (!userId) return errorResponse('Unauthorized', 401)
 
   try {
-    const limit = parseInt(url.searchParams.get('limit') || '20')
+    const limit = Math.min(Math.max(parseInt(url.searchParams.get('limit') || '20'), 1), 100)
 
     const result = await env.database.prepare(`
       SELECT 
@@ -230,7 +230,7 @@ async function handleGetNotifications(ctx: RequestContext): Promise<Response> {
   if (!userId) return errorResponse('Unauthorized', 401)
 
   try {
-    const limit = parseInt(url.searchParams.get('limit') || '50')
+    const limit = Math.min(Math.max(parseInt(url.searchParams.get('limit') || '50'), 1), 100)
     const unreadOnly = url.searchParams.get('unread') === 'true'
 
     let query = `

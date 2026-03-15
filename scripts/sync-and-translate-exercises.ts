@@ -1,5 +1,5 @@
 import pg from 'pg'
-// @ts-ignore - ESM import
+// @ts-expect-error - ESM import without types
 import { translate } from '@vitalets/google-translate-api'
 
 const API_BASE = 'https://exercise-db-with-videos-and-images-by-ascendapi.p.rapidapi.com/api/v1'

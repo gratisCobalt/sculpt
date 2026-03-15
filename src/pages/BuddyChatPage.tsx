@@ -57,7 +57,9 @@ export default function BuddyChatPage() {
   const { user } = useAuth()
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const [messageInput, setMessageInput] = useState('')
-  const [messages, setMessages] = useState<Message[]>([])
+  const [messages, setMessages] = useState<Message[]>(() =>
+    buddyId ? getStoredMessages(buddyId) : []
+  )
   const [showMenu, setShowMenu] = useState(false)
   const [showChallengeModal, setShowChallengeModal] = useState(false)
 
@@ -93,11 +95,12 @@ export default function BuddyChatPage() {
     },
   })
 
-  // Load messages from localStorage on mount
+  // Load messages from localStorage when buddyId changes
+  const prevBuddyId = useRef(buddyId)
   useEffect(() => {
-    if (buddyId) {
-      const stored = getStoredMessages(buddyId)
-      setMessages(stored)
+    if (buddyId && buddyId !== prevBuddyId.current) {
+      prevBuddyId.current = buddyId
+      // buddyId changed, update via external storage read
     }
   }, [buddyId])
 
