@@ -126,21 +126,21 @@ export function ExerciseHistoryModal({
                 </p>
               </div>
             </div>
-            <div className="flex items-center gap-1">
-              {onAddWorkout && (
-                <Button variant="ghost" size="icon" onClick={onAddWorkout}>
-                  <Plus className="w-5 h-5" />
-                </Button>
-              )}
-              <Button variant="ghost" size="icon" onClick={onClose}>
-                <X className="w-5 h-5" />
-              </Button>
-            </div>
+            <Button variant="ghost" size="icon" onClick={onClose}>
+              <X className="w-5 h-5" />
+            </Button>
           </div>
         </div>
 
         {/* Content */}
         <div className="overflow-y-auto p-4 pb-8 max-h-[calc(85vh-80px)]">
+          {onAddWorkout && (
+            <Button className="w-full mb-4" onClick={onAddWorkout}>
+              <Plus className="w-4 h-4 mr-2" />
+              Workout tracken
+            </Button>
+          )}
+
           {Object.entries(groupedHistory).length === 0 ? (
             <div className="text-center py-8">
               <p className="text-[hsl(var(--muted-foreground))]">
