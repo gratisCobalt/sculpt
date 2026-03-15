@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { X, Trash2, Edit3, Save, Calendar, Weight, Repeat, ChevronDown, ChevronUp } from 'lucide-react'
+import { X, Trash2, Edit3, Save, Calendar, Weight, Repeat, ChevronDown, ChevronUp, Plus } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
@@ -24,6 +24,7 @@ interface ExerciseHistoryModalProps {
   exerciseName: string
   imageUrl?: string
   history: ExerciseSet[]
+  onAddWorkout?: () => void
 }
 
 export function ExerciseHistoryModal({
@@ -33,6 +34,7 @@ export function ExerciseHistoryModal({
   exerciseName,
   imageUrl,
   history,
+  onAddWorkout,
 }: ExerciseHistoryModalProps) {
   const queryClient = useQueryClient()
   const [editingId, setEditingId] = useState<number | null>(null)
@@ -124,9 +126,16 @@ export function ExerciseHistoryModal({
                 </p>
               </div>
             </div>
-            <Button variant="ghost" size="icon" onClick={onClose}>
-              <X className="w-5 h-5" />
-            </Button>
+            <div className="flex items-center gap-1">
+              {onAddWorkout && (
+                <Button variant="ghost" size="icon" onClick={onAddWorkout}>
+                  <Plus className="w-5 h-5" />
+                </Button>
+              )}
+              <Button variant="ghost" size="icon" onClick={onClose}>
+                <X className="w-5 h-5" />
+              </Button>
+            </div>
           </div>
         </div>
 

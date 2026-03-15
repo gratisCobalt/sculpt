@@ -10,6 +10,7 @@ import {
   Clock,
   MoreVertical,
   Plus,
+  Trash2,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { SkeletonList, Loader } from '@/components/ui/loader'
@@ -47,13 +48,11 @@ export default function GuidedTrainingPage() {
   const [currentExerciseIndex, setCurrentExerciseIndex] = useState(0)
   const [elapsedTime, setElapsedTime] = useState(0)
   const [isPaused, setIsPaused] = useState(false)
-  const [weight, setWeight] = useState('')
-  const [reps, setReps] = useState('')
+  const [setInputs, setSetInputs] = useState<{ weight: string; reps: string }[]>([])
   const [workoutLogs, setWorkoutLogs] = useState<WorkoutLog[]>([])
   const [showSummary, setShowSummary] = useState(false)
   const [showConfetti, setShowConfetti] = useState(false)
   const [showMenu, setShowMenu] = useState(false)
-  const [currentSetNumber, setCurrentSetNumber] = useState(1)
 
   // Fetch available days if no dayId provided - use API
   const { data: days, isLoading: daysLoading } = useQuery({
@@ -91,6 +90,7 @@ export default function GuidedTrainingPage() {
   })
 
   const currentExercise = exercises?.[currentExerciseIndex]
+  const plannedSets = currentExercise?.sets || 3
 
   // Letzte Workout-Daten für aktuelle Übung holen (für Placeholder)
   const { data: lastWorkoutData } = useQuery({
@@ -99,10 +99,26 @@ export default function GuidedTrainingPage() {
     enabled: !!currentExercise?.exercise_id && isTraining,
   })
 
-  // Placeholder-Werte basierend auf aktuellem Satz
-  const lastSetData = lastWorkoutData?.sets?.[currentSetNumber]
-  const weightPlaceholder = lastSetData ? `${lastSetData.weight}` : '0'
-  const repsPlaceholder = lastSetData ? `${lastSetData.reps}` : '0'
+  // Initialize set inputs when exercise changes
+  useEffect(() => {
+    if (!currentExercise) return
+    const count = currentExercise.sets || 3
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setSetInputs(Array.from({ length: count }, () => ({ weight: '', reps: '' })))
+  }, [currentExercise?.id, currentExercise?.sets]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  const updateSetInput = (index: number, field: 'weight' | 'reps', value: string) => {
+    setSetInputs(prev => prev.map((s, i) => i === index ? { ...s, [field]: value } : s))
+  }
+
+  const addSetInput = () => {
+    setSetInputs(prev => [...prev, { weight: '', reps: '' }])
+  }
+
+  const removeSetInput = (index: number) => {
+    if (setInputs.length <= 1) return
+    setSetInputs(prev => prev.filter((_, i) => i !== index))
+  }
 
   // Timer effect
   useEffect(() => {
@@ -119,19 +135,18 @@ export default function GuidedTrainingPage() {
     }
   }, [isTraining, isPaused])
 
-  // Save workout mutation - using API
+  // Save workout mutation - saves all sets at once
   const saveWorkoutMutation = useMutation({
-    mutationFn: async (log: WorkoutLog) => {
-      if (!user?.id) return
+    mutationFn: async (logs: WorkoutLog[]) => {
+      if (!user?.id || logs.length === 0) return
 
-      // Save via API
       await api.createWorkout({
-        sets: [{
+        sets: logs.map((log, i) => ({
           exercise_id: log.exerciseId,
-          set_number: currentSetNumber,
+          set_number: i + 1,
           weight_kg: log.weight,
           reps: log.reps,
-        }]
+        }))
       })
     },
   })
@@ -143,45 +158,41 @@ export default function GuidedTrainingPage() {
   }
 
   const handleSaveAndNext = useCallback(async () => {
-    if (!currentExercise || !weight || !reps) return
+    if (!currentExercise) return
 
-    const log: WorkoutLog = {
+    // Collect non-empty sets
+    const validSets = setInputs.filter(s => s.weight || s.reps)
+    if (validSets.length === 0) return
+
+    const name = currentExercise.exercise?.name_de || currentExercise.exercise?.name || currentExercise.exercise_name || 'Übung'
+    const logs: WorkoutLog[] = validSets.map(s => ({
       exerciseId: currentExercise.id,
       machineId: currentExercise.machine?.id || null,
-      exerciseName: currentExercise.exercise?.name_de || currentExercise.exercise?.name || currentExercise.exercise_name || 'Übung',
-      weight: parseFloat(weight),
-      reps: parseInt(reps),
+      exerciseName: name,
+      weight: parseFloat(s.weight) || 0,
+      reps: parseInt(s.reps) || 0,
       completed: true,
-    }
+    }))
 
-    // Save to database
-    await saveWorkoutMutation.mutateAsync(log)
+    // Save all sets to database
+    await saveWorkoutMutation.mutateAsync(logs)
 
     // Add to logs
-    setWorkoutLogs((prev) => [...prev, log])
+    setWorkoutLogs(prev => [...prev, ...logs])
 
-    // Nächsten Satz vorbereiten oder zur nächsten Übung
-    setCurrentSetNumber((prev) => prev + 1)
-
-    // Move to next exercise or finish
     if (currentExerciseIndex < (exercises?.length || 0) - 1) {
-      setCurrentExerciseIndex((prev) => prev + 1)
-      setWeight('')
-      setReps('')
-      setCurrentSetNumber(1) // Reset set counter für neue Übung
+      // Move to next exercise
+      setCurrentExerciseIndex(prev => prev + 1)
     } else {
-      // Training complete
+      // Last exercise → training complete
       setShowConfetti(true)
       setShowSummary(true)
     }
-  }, [currentExercise, weight, reps, exercises, currentExerciseIndex, saveWorkoutMutation])
+  }, [currentExercise, setInputs, exercises, currentExerciseIndex, saveWorkoutMutation])
 
   const handleSkip = () => {
     if (currentExerciseIndex < (exercises?.length || 0) - 1) {
-      setCurrentExerciseIndex((prev) => prev + 1)
-      setWeight('')
-      setReps('')
-      setCurrentSetNumber(1) // Reset set counter
+      setCurrentExerciseIndex(prev => prev + 1)
     } else {
       setShowSummary(true)
     }
@@ -199,7 +210,7 @@ export default function GuidedTrainingPage() {
     ex.exercise?.name_de || ex.exercise?.name || ex.exercise_name || 'Übung'
 
   const progressPercent = exercises?.length
-    ? Math.round(((currentExerciseIndex + 1) / exercises.length) * 100)
+    ? Math.round((currentExerciseIndex / exercises.length) * 100)
     : 0
 
   // Performance graph: SVG sparkline for last workout data
@@ -333,7 +344,7 @@ export default function GuidedTrainingPage() {
             {/* Stats */}
             <div className="grid grid-cols-3 gap-3 mb-8">
               <div className="glass rounded-2xl p-4 text-center">
-                <p className="text-xs text-[hsl(var(--muted-foreground))]">Übungen</p>
+                <p className="text-xs text-[hsl(var(--muted-foreground))]">Sätze</p>
                 <p className="text-2xl font-bold">{workoutLogs.length}</p>
               </div>
               <div className="glass rounded-2xl p-4 text-center">
@@ -449,7 +460,7 @@ export default function GuidedTrainingPage() {
                 </div>
                 <div className="training-hero-title">
                   <p>{currentExercise ? exerciseName(currentExercise) : '...'}</p>
-                  <span>Satz {currentSetNumber}</span>
+                  <span>{plannedSets} Sätze</span>
                 </div>
                 <button
                   className="training-menu-button"
@@ -510,7 +521,7 @@ export default function GuidedTrainingPage() {
               <div className="training-progress-meta">
                 <span>Fortschritt</span>
                 <span>
-                  {currentExerciseIndex + 1}/{exercises?.length || 0} Übungen
+                  Übung {currentExerciseIndex + 1} / {exercises?.length || 0}
                 </span>
               </div>
               <div className="training-progress-track">
@@ -522,16 +533,6 @@ export default function GuidedTrainingPage() {
             </div>
           </header>
 
-          {/* "Letztes Mal" indicator */}
-          {lastSetData && (
-            <p className="text-sm text-center">
-              Letztes Mal:{' '}
-              <span className="font-semibold text-[hsl(var(--primary))]">
-                {lastSetData.weight}kg × {lastSetData.reps} Wdh
-              </span>
-            </p>
-          )}
-
           {/* Main content area */}
           <main className="flex flex-1 flex-col gap-6">
             {/* Performance Graph */}
@@ -540,41 +541,70 @@ export default function GuidedTrainingPage() {
                 {renderPerformanceGraph()}
               </div>
 
-              {/* Floating Input Panel */}
-              <div className="training-floating-panel space-y-5">
-                <div className="training-input-grid">
-                  <div>
-                    <label className="training-field-label">Gewicht (kg)</label>
-                    <div className="training-field mt-2">
-                      <input
-                        type="number"
-                        step="0.5"
-                        min="0"
-                        placeholder={weightPlaceholder}
-                        value={weight}
-                        onChange={(e) => setWeight(e.target.value)}
-                      />
-                    </div>
-                  </div>
-                  <div>
-                    <label className="training-field-label">Wiederholungen</label>
-                    <div className="training-field mt-2">
-                      <input
-                        type="number"
-                        min="1"
-                        placeholder={repsPlaceholder}
-                        value={reps}
-                        onChange={(e) => setReps(e.target.value)}
-                      />
-                    </div>
-                  </div>
+              {/* Floating Input Panel — all sets */}
+              <div className="training-floating-panel space-y-4">
+                {/* Header row */}
+                <div className="flex items-center justify-between">
+                  <span className="training-field-label">Sätze</span>
+                  <span className="text-xs text-[hsl(var(--muted-foreground))]">kg × Wdh</span>
+                </div>
+
+                {/* Set rows */}
+                <div className="space-y-2">
+                  {setInputs.map((setInput, index) => {
+                    const lastSet = lastWorkoutData?.sets?.[index + 1]
+                    return (
+                      <div key={index} className="flex items-center gap-2">
+                        <span className="w-7 h-8 flex items-center justify-center rounded-md bg-white/5 text-xs font-medium text-[hsl(var(--muted-foreground))]">
+                          {index + 1}
+                        </span>
+                        <div className="training-field flex-1">
+                          <input
+                            type="number"
+                            step="0.5"
+                            min="0"
+                            placeholder={lastSet ? `${lastSet.weight}` : '0'}
+                            value={setInput.weight}
+                            onChange={(e) => updateSetInput(index, 'weight', e.target.value)}
+                            autoFocus={index === 0}
+                          />
+                        </div>
+                        <span className="text-[hsl(var(--muted-foreground))] text-sm">×</span>
+                        <div className="training-field flex-1">
+                          <input
+                            type="number"
+                            min="1"
+                            placeholder={lastSet ? `${lastSet.reps}` : '0'}
+                            value={setInput.reps}
+                            onChange={(e) => updateSetInput(index, 'reps', e.target.value)}
+                          />
+                        </div>
+                        <button
+                          onClick={() => removeSetInput(index)}
+                          disabled={setInputs.length <= 1}
+                          className="p-1.5 rounded-lg text-red-400 hover:bg-red-400/10 transition-colors disabled:opacity-20 disabled:cursor-not-allowed"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
+                    )
+                  })}
+
+                  {/* Add set button */}
+                  <button
+                    onClick={addSetInput}
+                    className="w-full flex items-center justify-center gap-1.5 py-2 rounded-xl border border-dashed border-white/15 text-[hsl(var(--muted-foreground))] hover:border-[hsl(var(--primary))] hover:text-[hsl(var(--primary))] transition-colors text-sm"
+                  >
+                    <Plus className="w-3.5 h-3.5" />
+                    Satz hinzufügen
+                  </button>
                 </div>
 
                 <Button
                   size="lg"
                   className="w-full"
                   onClick={handleSaveAndNext}
-                  disabled={!weight || !reps || saveWorkoutMutation.isPending}
+                  disabled={!setInputs.some(s => s.weight || s.reps) || saveWorkoutMutation.isPending}
                 >
                   {saveWorkoutMutation.isPending ? (
                     <Loader size="sm" />
