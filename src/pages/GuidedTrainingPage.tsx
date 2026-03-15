@@ -441,16 +441,16 @@ export default function GuidedTrainingPage() {
         <div className="mx-auto flex w-full max-w-md flex-1 flex-col gap-6">
           {/* Hero Bar */}
           <header className="space-y-4">
-            <div className="training-hero-bar">
-              <div className="training-time-pill">
-                <Clock className="h-4 w-4" />
-                <span>{formatTime(elapsedTime)}</span>
-              </div>
-              <div className="training-hero-title">
-                <p>{currentExercise ? exerciseName(currentExercise) : '...'}</p>
-                <span>Satz {currentSetNumber}</span>
-              </div>
-              <div className="relative">
+            <div className="relative">
+              <div className="training-hero-bar">
+                <div className="training-time-pill">
+                  <Clock className="h-4 w-4" />
+                  <span>{formatTime(elapsedTime)}</span>
+                </div>
+                <div className="training-hero-title">
+                  <p>{currentExercise ? exerciseName(currentExercise) : '...'}</p>
+                  <span>Satz {currentSetNumber}</span>
+                </div>
                 <button
                   className="training-menu-button"
                   onClick={() => setShowMenu(!showMenu)}
@@ -458,51 +458,51 @@ export default function GuidedTrainingPage() {
                 >
                   <MoreVertical className="h-5 w-5" />
                 </button>
-                {showMenu && (
-                  <div className="absolute right-0 top-full mt-2 w-52 rounded-xl glass p-2 z-50 animate-scale-in">
-                    <button
-                      className="training-menu-item w-full text-left rounded-lg hover:bg-white/5 transition-colors"
-                      onClick={() => {
-                        setShowMenu(false)
-                        setIsPaused(!isPaused)
-                      }}
-                    >
-                      {isPaused ? <Play className="h-4 w-4" /> : <Pause className="h-4 w-4" />}
-                      {isPaused ? 'Fortsetzen' : 'Pausieren'}
-                    </button>
-                    <button
-                      className="training-menu-item w-full text-left rounded-lg hover:bg-white/5 transition-colors"
-                      onClick={() => {
-                        setShowMenu(false)
-                        navigate('/add-workout')
-                      }}
-                    >
-                      <Plus className="h-4 w-4" />
-                      Alternative tracken
-                    </button>
-                    <button
-                      className="training-menu-item w-full text-left rounded-lg hover:bg-white/5 transition-colors"
-                      onClick={() => {
-                        setShowMenu(false)
-                        handleSkip()
-                      }}
-                    >
-                      <SkipForward className="h-4 w-4" />
-                      Überspringen
-                    </button>
-                    <button
-                      className="training-menu-item w-full text-left rounded-lg hover:bg-white/5 transition-colors text-[hsl(var(--destructive))]"
-                      onClick={() => {
-                        setShowMenu(false)
-                        setShowSummary(true)
-                      }}
-                    >
-                      <X className="h-4 w-4" />
-                      Training beenden
-                    </button>
-                  </div>
-                )}
               </div>
+              {showMenu && (
+                <div className="absolute right-0 top-full mt-2 w-52 rounded-xl glass p-2 z-50 animate-scale-in">
+                  <button
+                    className="training-menu-item w-full text-left rounded-lg hover:bg-white/5 transition-colors"
+                    onClick={() => {
+                      setShowMenu(false)
+                      setIsPaused(!isPaused)
+                    }}
+                  >
+                    {isPaused ? <Play className="h-4 w-4" /> : <Pause className="h-4 w-4" />}
+                    {isPaused ? 'Fortsetzen' : 'Pausieren'}
+                  </button>
+                  <button
+                    className="training-menu-item w-full text-left rounded-lg hover:bg-white/5 transition-colors"
+                    onClick={() => {
+                      setShowMenu(false)
+                      navigate('/add-workout')
+                    }}
+                  >
+                    <Plus className="h-4 w-4" />
+                    Alternative tracken
+                  </button>
+                  <button
+                    className="training-menu-item w-full text-left rounded-lg hover:bg-white/5 transition-colors"
+                    onClick={() => {
+                      setShowMenu(false)
+                      handleSkip()
+                    }}
+                  >
+                    <SkipForward className="h-4 w-4" />
+                    Überspringen
+                  </button>
+                  <button
+                    className="training-menu-item w-full text-left rounded-lg hover:bg-white/5 transition-colors text-[hsl(var(--destructive))]"
+                    onClick={() => {
+                      setShowMenu(false)
+                      setShowSummary(true)
+                    }}
+                  >
+                    <X className="h-4 w-4" />
+                    Training beenden
+                  </button>
+                </div>
+              )}
             </div>
 
             {/* Progress Bar */}
