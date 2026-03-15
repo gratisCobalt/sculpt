@@ -23,6 +23,7 @@ import type { TrainingPlanDay, TrainingPlanExercise } from '@/types/database'
 interface ExerciseWithMachine extends TrainingPlanExercise {
   machine: { id: string; name: string } | null
   exercise_name?: string
+  exercise?: { id?: number; name?: string; name_de?: string; image_url?: string; video_url?: string }
 }
 
 interface WorkoutLog {
