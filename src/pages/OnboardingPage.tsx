@@ -1,4 +1,4 @@
-import { useState, useCallback, useEffect, useRef } from 'react'
+import { useState, useCallback, useEffect, useRef, useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
 import {
   User,
@@ -79,6 +79,12 @@ export default function OnboardingPage() {
   const [bodyWeight, setBodyWeight] = useState('')
   const [selectedFocusAreas, setSelectedFocusAreas] = useState<string[]>([])
 
+  const computedAge = useMemo(() => {
+    if (!birthdate) return 0
+    const now = new Date()
+    return Math.floor((now.getTime() - new Date(birthdate).getTime()) / (365.25 * 24 * 60 * 60 * 1000))
+  }, [birthdate])
+
   // Cleanup intervals on unmount
   useEffect(() => {
     return () => {
@@ -140,7 +146,7 @@ export default function OnboardingPage() {
         experience_level: experience,
         body_weight_kg: parseFloat(bodyWeight),
         onboarding_completed: true,
-      } as any)
+      } as Record<string, unknown>)
 
       // Start AI plan generation
       setIsLoading(false)
@@ -375,7 +381,7 @@ export default function OnboardingPage() {
             />
             {birthdate && (
               <p className="text-center mt-4 text-[hsl(var(--muted-foreground))]">
-                {Math.floor((Date.now() - new Date(birthdate).getTime()) / (365.25 * 24 * 60 * 60 * 1000))} Jahre alt
+                {computedAge} Jahre alt
               </p>
             )}
           </div>

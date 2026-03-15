@@ -54,7 +54,7 @@ export default function DashboardPage() {
     enabled: !!user,
   })
 
-  const unopenedBoxes = lootBoxes?.filter((b: any) => !b.is_opened)?.length || 0
+  const unopenedBoxes = lootBoxes?.filter((b: Record<string, unknown>) => !b.is_opened)?.length || 0
 
   // Fetch exercise progress for cards (last 30 days with category filter)
   const { data: exerciseProgress, isLoading: progressLoading } = useQuery({

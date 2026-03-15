@@ -1,6 +1,6 @@
 /// <reference types="@cloudflare/workers-types" />
 import type { Env } from '../../lib/types'
-import { jsonResponse, errorResponse, corsResponse, generateUUID, nowISO } from '../../lib/db'
+import { jsonResponse, errorResponse, corsResponse, nowISO } from '../../lib/db'
 import { getUserIdFromRequest } from '../../lib/auth'
 
 // Workout API Routes for Cloudflare Pages Functions

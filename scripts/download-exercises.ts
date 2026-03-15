@@ -91,7 +91,7 @@ async function main() {
   }
   
   // Check if we have a partial download to resume
-  let cache: { exercises: ExerciseDetail[], downloadedIds: Set<string>, lastCursor: string | null } = {
+  const cache: { exercises: ExerciseDetail[], downloadedIds: Set<string>, lastCursor: string | null } = {
     exercises: [],
     downloadedIds: new Set(),
     lastCursor: null

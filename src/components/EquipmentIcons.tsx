@@ -1,3 +1,4 @@
+/* eslint-disable react-refresh/only-export-components */
 import { Dumbbell, type LucideProps } from 'lucide-react'
 
 // Custom Equipment Icons as SVG components

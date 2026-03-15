@@ -27,10 +27,12 @@ const metValues: Record<string, number> = {
   OLYMPIC_WEIGHTLIFTING: 6.0,
 }
 
-function estimateAttributes(exercise: any): Record<string, number> {
-  const isCompound = (exercise.secondaryMuscles?.length || 0) >= 2
-  const hasBarbell = exercise.equipments?.includes('BARBELL') || exercise.equipments?.includes('OLYMPIC_BARBELL')
-  const isBodyweight = exercise.equipments?.includes('BODY WEIGHT')
+function estimateAttributes(exercise: Record<string, unknown>): Record<string, number> {
+  const secondaryMuscles = exercise.secondaryMuscles as string[] | undefined
+  const equipments = exercise.equipments as string[] | undefined
+  const isCompound = (secondaryMuscles?.length || 0) >= 2
+  const hasBarbell = equipments?.includes('BARBELL') || equipments?.includes('OLYMPIC_BARBELL')
+  const isBodyweight = equipments?.includes('BODY WEIGHT')
   const isStrength = exercise.exerciseType === 'STRENGTH'
   const isCardio = exercise.exerciseType === 'CARDIO'
   
@@ -64,7 +66,7 @@ async function getOrCreate(client: pg.PoolClient, table: string, code: string, b
   return result.rows[0]?.id || null
 }
 
-async function importExercise(client: pg.PoolClient, exercise: any): Promise<boolean> {
+async function importExercise(client: pg.PoolClient, exercise: Record<string, unknown>): Promise<boolean> {
   try {
     const exerciseTypeId = exercise.exerciseType 
       ? await getOrCreate(client, 'exercise_type', exercise.exerciseType)

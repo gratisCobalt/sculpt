@@ -16,7 +16,7 @@ export const onRequest: PagesFunction<Env> = async (context) => {
       database: result?.ok === 1 ? 'connected' : 'error',
       timestamp: new Date().toISOString(),
     })
-  } catch (error) {
+  } catch {
     return jsonResponse({
       status: 'error',
       database: 'disconnected',

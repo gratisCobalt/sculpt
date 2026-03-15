@@ -54,7 +54,7 @@ export default function BuddyPage() {
   const [searchQuery, setSearchQuery] = useState('')
   const [isSearching, setIsSearching] = useState(false)
   const [showChallengeModal, setShowChallengeModal] = useState(false)
-  const [selectedBuddyForChallenge, setSelectedBuddyForChallenge] = useState<any>(null)
+  const [selectedBuddyForChallenge, setSelectedBuddyForChallenge] = useState<Record<string, unknown> | null>(null)
   const [showRequestsSheet, setShowRequestsSheet] = useState(false)
 
   // Fetch buddies
@@ -128,7 +128,7 @@ export default function BuddyPage() {
   const runningChallenges = activeChallenges.filter(c => c.status === 'active')
   const sentChallenges = activeChallenges.filter(c => c.status === 'pending' && c.challenger_id === user?.id)
 
-  const handleStartChallenge = (buddy: any) => {
+  const handleStartChallenge = (buddy: Record<string, unknown>) => {
     setSelectedBuddyForChallenge(buddy)
     setShowChallengeModal(true)
   }
@@ -595,13 +595,14 @@ function BuddyCard({
   buddy,
   onChat,
 }: {
-  buddy: any
+  buddy: Record<string, unknown>
   onChat: () => void
 }) {
   const lastWorkout = buddy.last_workout_at
-    ? new Date(buddy.last_workout_at)
+    ? new Date(buddy.last_workout_at as string)
     : null
-  const isRecent = lastWorkout && Date.now() - lastWorkout.getTime() < 7 * 24 * 60 * 60 * 1000
+  const [now] = useState(() => Date.now())
+  const isRecent = lastWorkout && now - lastWorkout.getTime() < 7 * 24 * 60 * 60 * 1000
 
   return (
     <Card className="cursor-pointer hover:bg-[hsl(var(--surface-soft))] transition-colors" onClick={onChat}>
@@ -639,7 +640,7 @@ function BuddyCard({
               )}
               <span>
                 {lastWorkout
-                  ? `${formatTimeAgo(lastWorkout)}`
+                  ? `${formatTimeAgo(lastWorkout, now)}`
                   : 'Noch kein Training'}
               </span>
             </div>
@@ -699,9 +700,9 @@ function LeaderboardRow({ entry, isCurrentUser }: { entry: LeaderboardUser; isCu
           </div>
         </div>
         <div className="text-right">
-          <p className="font-bold text-sm">{((entry as any).weekly_volume ?? entry.weekly_volume_kg ?? 0).toLocaleString()} kg</p>
+          <p className="font-bold text-sm">{((entry as unknown as Record<string, number>).weekly_volume ?? entry.weekly_volume_kg ?? 0).toLocaleString()} kg</p>
           <p className="text-xs text-[hsl(var(--muted-foreground))]">
-            {((entry as any).weekly_workouts ?? entry.weekly_workout_count ?? 0)} Training{(((entry as any).weekly_workouts ?? entry.weekly_workout_count ?? 0)) !== 1 ? 's' : ''}
+            {((entry as unknown as Record<string, number>).weekly_workouts ?? entry.weekly_workout_count ?? 0)} Training{(((entry as unknown as Record<string, number>).weekly_workouts ?? entry.weekly_workout_count ?? 0)) !== 1 ? 's' : ''}
           </p>
         </div>
       </CardContent>
@@ -732,8 +733,9 @@ function ChallengeCard({
   const myProgress = isChallenger ? challenge.challenger_progress : challenge.opponent_progress
   const theirProgress = isChallenger ? challenge.opponent_progress : challenge.challenger_progress
 
+  const [challengeNow] = useState(() => Date.now())
   const endsAt = new Date(challenge.ends_at)
-  const timeLeft = endsAt.getTime() - Date.now()
+  const timeLeft = endsAt.getTime() - challengeNow
   const hoursLeft = Math.max(0, Math.floor(timeLeft / (1000 * 60 * 60)))
   const daysLeft = Math.floor(hoursLeft / 24)
 
@@ -824,7 +826,7 @@ function EmptyState({
   description,
   action,
 }: {
-  icon: any
+  icon: React.ComponentType<{ className?: string }>
   title: string
   description: string
   action?: React.ReactNode
@@ -841,8 +843,8 @@ function EmptyState({
   )
 }
 
-function formatTimeAgo(date: Date): string {
-  const seconds = Math.floor((Date.now() - date.getTime()) / 1000)
+function formatTimeAgo(date: Date, currentTime: number): string {
+  const seconds = Math.floor((currentTime - date.getTime()) / 1000)
 
   if (seconds < 60) return 'Gerade eben'
   if (seconds < 3600) return `vor ${Math.floor(seconds / 60)} Min.`

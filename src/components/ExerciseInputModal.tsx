@@ -34,28 +34,12 @@ export function ExerciseInputModal({ isOpen, onClose, exercise }: ExerciseInputM
     const [workoutNote, setWorkoutNote] = useState('')
     const [showNoteInput, setShowNoteInput] = useState(false)
 
-    // DISABLED: Fetch last workout data - commented out for performance
-    // const { data: lastWorkout, isLoading: lastWorkoutLoading } = useQuery({
-    //   queryKey: ['exerciseLastWorkout', exercise.id],
-    //   queryFn: () => api.getExerciseLastWorkout(exercise.id),
-    //   enabled: isOpen,
-    // })
-
-    // Initialize sets - always default to 3 sets
+    // Initialize sets when modal opens - setState in effect is intentional here
+    // to reset form state when the modal opens/closes
     useEffect(() => {
         if (!isOpen) return
 
-        // DISABLED: Previous workout-based set count
-        // if (lastWorkout?.sets && Object.keys(lastWorkout.sets).length > 0) {
-        //   const lastSets = Object.entries(lastWorkout.sets)
-        //     .sort(([a], [b]) => parseInt(a) - parseInt(b))
-        //     .map((_, index) => ({
-        //       id: `${baseId}-${index}`,
-        //       weight: '',
-        //       reps: '',
-        //     }))
-        //   setSets(lastSets)
-        // } else {
+        // eslint-disable-next-line react-hooks/set-state-in-effect
         setSets(
             Array.from({ length: DEFAULT_SET_COUNT }, (_, i) => ({
                 id: `${baseId}-${i}`,
@@ -63,7 +47,6 @@ export function ExerciseInputModal({ isOpen, onClose, exercise }: ExerciseInputM
                 reps: '',
             }))
         )
-        // }
         setWorkoutNote('')
         setShowNoteInput(false)
     }, [isOpen, baseId])

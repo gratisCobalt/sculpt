@@ -88,7 +88,9 @@ async function handleListExercises(ctx: RequestContext): Promise<Response> {
       LEFT JOIN exercise_type et ON e.exercise_type_id = et.id
       WHERE 1=1
     `
-    const countParams = params.slice(0, -(search ? 4 : 2)) // Remove limit/offset logic (simplified)
+    // Remove limit/offset logic (simplified) - using finalCountParams instead
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+    const _countParams = params.slice(0, -(search ? 4 : 2))
     // Actually we need to rebuild parameters for count query to be safe or splice properly.
     // Simpler: Just rebuild params from scratch or slice correct amount.
     // The LIMIT/OFFSET are the last 2 params.

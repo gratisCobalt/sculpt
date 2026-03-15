@@ -50,7 +50,7 @@ class ApiClient {
   // =====================================================
 
   async login(email: string, password: string) {
-    const data = await this.request<{ user: any; token: string }>('/api/auth/login', {
+    const data = await this.request<{ user: Record<string, unknown>; token: string }>('/api/auth/login', {
       method: 'POST',
       body: JSON.stringify({ email, password }),
     })
@@ -59,7 +59,7 @@ class ApiClient {
   }
 
   async register(email: string, password: string, displayName: string) {
-    const data = await this.request<{ user: any; token: string }>('/api/auth/register', {
+    const data = await this.request<{ user: Record<string, unknown>; token: string }>('/api/auth/register', {
       method: 'POST',
       body: JSON.stringify({ email, password, displayName }),
     })
@@ -68,7 +68,7 @@ class ApiClient {
   }
 
   async getMe() {
-    return this.request<any>('/api/auth/me')
+    return this.request<Record<string, unknown>>('/api/auth/me')
   }
 
   logout() {
@@ -81,7 +81,7 @@ class ApiClient {
 
   async googleAuth(idToken: string) {
     const data = await this.request<{ 
-      user: any
+      user: Record<string, unknown>
       token: string
       isNewUser: boolean
       linked?: boolean 
@@ -94,14 +94,14 @@ class ApiClient {
   }
 
   async linkGoogleAccount(idToken: string) {
-    return this.request<{ success: boolean; user: any }>('/api/auth/google/link', {
+    return this.request<{ success: boolean; user: Record<string, unknown> }>('/api/auth/google/link', {
       method: 'POST',
       body: JSON.stringify({ idToken }),
     })
   }
 
   async unlinkGoogleAccount() {
-    return this.request<{ success: boolean; user: any }>('/api/auth/google/unlink', {
+    return this.request<{ success: boolean; user: Record<string, unknown> }>('/api/auth/google/unlink', {
       method: 'POST',
     })
   }
@@ -119,7 +119,7 @@ class ApiClient {
     experience_level?: string
     onboarding_completed?: boolean
   }) {
-    return this.request<any>('/api/users/me', {
+    return this.request<Record<string, unknown>>('/api/users/me', {
       method: 'PATCH',
       body: JSON.stringify(data),
     })
@@ -152,7 +152,7 @@ class ApiClient {
   async getExerciseProgress(period: number = 7, bodyPart?: string) {
     const params = new URLSearchParams({ period: period.toString() })
     if (bodyPart) params.append('bodyPart', bodyPart)
-    return this.request<any[]>(`/api/dashboard/exercise-progress?${params}`)
+    return this.request<Record<string, unknown>[]>(`/api/dashboard/exercise-progress?${params}`)
   }
 
   // =====================================================
@@ -164,7 +164,7 @@ class ApiClient {
     if (options.search) params.append('search', options.search)
     if (options.bodyPart) params.append('bodyPart', options.bodyPart)
     if (options.limit) params.append('limit', options.limit.toString())
-    return this.request<any[]>(`/api/exercises?${params}`)
+    return this.request<Record<string, unknown>[]>(`/api/exercises?${params}`)
   }
 
   async getExercisesPaginated(options: { 
@@ -194,7 +194,7 @@ class ApiClient {
   }
 
   async getExercise(id: number) {
-    return this.request<any>(`/api/exercises/${id}`)
+    return this.request<Record<string, unknown>>(`/api/exercises/${id}`)
   }
 
   async getExerciseLastWorkout(exerciseId: number) {
@@ -209,15 +209,15 @@ class ApiClient {
   // =====================================================
 
   async getTrainingPlans() {
-    return this.request<any[]>('/api/training-plans')
+    return this.request<Record<string, unknown>[]>('/api/training-plans')
   }
 
   async getTrainingPlan(id: number) {
-    return this.request<any>(`/api/training-plans/${id}`)
+    return this.request<Record<string, unknown>>(`/api/training-plans/${id}`)
   }
 
   async getUserTrainingPlan() {
-    return this.request<any>('/api/users/me/training-plan')
+    return this.request<Record<string, unknown>>('/api/users/me/training-plan')
   }
 
   async generateTrainingPlan(data: {
@@ -252,14 +252,14 @@ class ApiClient {
       rpe?: number
     }[]
   }) {
-    return this.request<any>('/api/workouts', {
+    return this.request<Record<string, unknown>>('/api/workouts', {
       method: 'POST',
       body: JSON.stringify(data),
     })
   }
 
   async getWorkouts(limit: number = 20) {
-    return this.request<any[]>(`/api/workouts?limit=${limit}`)
+    return this.request<Record<string, unknown>[]>(`/api/workouts?limit=${limit}`)
   }
 
   // =====================================================
@@ -267,7 +267,7 @@ class ApiClient {
   // =====================================================
 
   async updateWorkoutSet(setId: number, data: { weight_kg?: number; reps?: number }) {
-    return this.request<any>(`/api/workout-sets/${setId}`, {
+    return this.request<Record<string, unknown>>(`/api/workout-sets/${setId}`, {
       method: 'PATCH',
       body: JSON.stringify(data),
     })
@@ -284,15 +284,15 @@ class ApiClient {
   // =====================================================
 
   async getAllBadges() {
-    return this.request<any[]>('/api/badges')
+    return this.request<Record<string, unknown>[]>('/api/badges')
   }
 
   async getUserBadges() {
-    return this.request<any[]>('/api/users/me/badges')
+    return this.request<Record<string, unknown>[]>('/api/users/me/badges')
   }
 
   async checkForNewBadges() {
-    return this.request<{ newBadges: any[] }>('/api/users/me/badges/check')
+    return this.request<{ newBadges: Record<string, unknown>[] }>('/api/users/me/badges/check')
   }
 
   async markBadgeNotified(badgeId: number) {
@@ -306,11 +306,11 @@ class ApiClient {
   // =====================================================
 
   async getBodyParts() {
-    return this.request<any[]>('/api/body-parts')
+    return this.request<Record<string, unknown>[]>('/api/body-parts')
   }
 
   async getGenders() {
-    return this.request<any[]>('/api/genders')
+    return this.request<Record<string, unknown>[]>('/api/genders')
   }
 
   // =====================================================
@@ -318,15 +318,15 @@ class ApiClient {
   // =====================================================
 
   async searchUsers(query: string) {
-    return this.request<any[]>(`/api/users/search?q=${encodeURIComponent(query)}`)
+    return this.request<Record<string, unknown>[]>(`/api/users/search?q=${encodeURIComponent(query)}`)
   }
 
   async getBuddies() {
-    return this.request<any[]>('/api/buddies')
+    return this.request<Record<string, unknown>[]>('/api/buddies')
   }
 
   async sendFriendRequest(userId: string) {
-    return this.request<any>('/api/buddies/request', {
+    return this.request<Record<string, unknown>>('/api/buddies/request', {
       method: 'POST',
       body: JSON.stringify({ user_id: userId }),
     })
@@ -356,7 +356,7 @@ class ApiClient {
   // =====================================================
 
   async getNotifications(unreadOnly = false, limit = 50) {
-    return this.request<any[]>(`/api/notifications?unread=${unreadOnly}&limit=${limit}`)
+    return this.request<Record<string, unknown>[]>(`/api/notifications?unread=${unreadOnly}&limit=${limit}`)
   }
 
   async markNotificationsRead(notificationIds: number[] | 'all') {
@@ -371,7 +371,7 @@ class ApiClient {
   // =====================================================
 
   async getActivityFeed(limit = 30) {
-    return this.request<any[]>(`/api/activity-feed?limit=${limit}`)
+    return this.request<Record<string, unknown>[]>(`/api/activity-feed?limit=${limit}`)
   }
 
   async sendCongrats(itemId: number, emoji = '🎉') {
@@ -386,7 +386,7 @@ class ApiClient {
   // =====================================================
 
   async getEncryptionKeys() {
-    return this.request<any>('/api/encryption/keys')
+    return this.request<Record<string, unknown>>('/api/encryption/keys')
   }
 
   async uploadEncryptionKeys(keys: {
@@ -402,7 +402,7 @@ class ApiClient {
   }
 
   async getBuddyKeys(friendshipId: number) {
-    return this.request<any>(`/api/buddies/${friendshipId}/keys`)
+    return this.request<Record<string, unknown>>(`/api/buddies/${friendshipId}/keys`)
   }
 
   async sendMessage(friendshipId: number, message: {
@@ -414,7 +414,7 @@ class ApiClient {
     referenceType?: string
     referenceId?: number
   }) {
-    return this.request<any>(`/api/buddies/${friendshipId}/messages`, {
+    return this.request<Record<string, unknown>>(`/api/buddies/${friendshipId}/messages`, {
       method: 'POST',
       body: JSON.stringify(message),
     })
@@ -423,7 +423,7 @@ class ApiClient {
   async getMessages(friendshipId: number, limit = 50, before?: string) {
     let url = `/api/buddies/${friendshipId}/messages?limit=${limit}`
     if (before) url += `&before=${encodeURIComponent(before)}`
-    return this.request<any[]>(url)
+    return this.request<Record<string, unknown>[]>(url)
   }
 
   // =====================================================
@@ -514,11 +514,11 @@ class ApiClient {
   // =====================================================
 
   async getShopItems() {
-    return this.request<any[]>('/api/shop')
+    return this.request<Record<string, unknown>[]>('/api/shop')
   }
 
   async getInventory() {
-    return this.request<any[]>('/api/inventory')
+    return this.request<Record<string, unknown>[]>('/api/inventory')
   }
 
   async purchaseItem(itemId: number, quantity = 1) {
@@ -535,7 +535,7 @@ class ApiClient {
   }
 
   async getLootBoxes() {
-    return this.request<any[]>('/api/lootboxes')
+    return this.request<Record<string, unknown>[]>('/api/lootboxes')
   }
 
   async clickLootBox(boxId: number) {

@@ -8,7 +8,7 @@
  */
 
 import pg from 'pg'
-// @ts-ignore
+// @ts-expect-error - ESM import without types
 import { translate } from '@vitalets/google-translate-api'
 
 const pool = new pg.Pool({
@@ -27,7 +27,7 @@ async function translateText(text: string, retries = 3): Promise<string> {
     try {
       const result = await translate(text, { to: 'de' })
       return result.text
-    } catch (e: any) {
+    } catch {
       if (attempt === retries) {
         console.error(`  ⚠️ Translation failed after ${retries} attempts, using original`)
         return text
@@ -97,7 +97,7 @@ async function main() {
         
         translated++
         
-      } catch (e) {
+      } catch {
         console.error(`  ❌ Failed: ${exercise.name}`)
         failed++
       }
@@ -134,11 +134,11 @@ async function main() {
         `, [textDe, instr.id])
         
         await new Promise(r => setTimeout(r, 400))
-      } catch (e) {
+      } catch {
         // Continue on failure
       }
     }
-    
+
     // Translate tips
     console.log('\n💡 Translating tips...\n')
     
@@ -166,11 +166,11 @@ async function main() {
         `, [textDe, tip.id])
         
         await new Promise(r => setTimeout(r, 400))
-      } catch (e) {
+      } catch {
         // Continue on failure
       }
     }
-    
+
     console.log('\n' + '='.repeat(50))
     console.log('📊 PHASE 2 COMPLETE')
     console.log('='.repeat(50))

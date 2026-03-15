@@ -27,6 +27,13 @@ const rarityGradients: Record<string, string> = {
   legendary: 'from-amber-400 via-orange-500 to-red-500',
 }
 
+const CONFETTI_VALUES = Array.from({ length: 50 }, () => ({
+  left: Math.random() * 100,
+  delay: Math.random() * 2,
+  duration: 2 + Math.random() * 2,
+  colorIndex: Math.floor(Math.random() * 5),
+}))
+
 const rarityGlows: Record<string, string> = {
   common: 'shadow-slate-500/50',
   rare: 'shadow-blue-500/50',
@@ -41,12 +48,13 @@ export function BadgePopup({ badge, onClose }: BadgePopupProps) {
   useEffect(() => {
     if (badge) {
       // Trigger entrance animation
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setIsVisible(true)
       setShowConfetti(true)
-      
+
       // Hide confetti after animation
       const confettiTimer = setTimeout(() => setShowConfetti(false), 3000)
-      
+
       return () => {
         clearTimeout(confettiTimer)
       }
@@ -59,6 +67,8 @@ export function BadgePopup({ badge, onClose }: BadgePopupProps) {
     setIsVisible(false)
     setTimeout(onClose, 300) // Wait for exit animation
   }
+
+  const confettiValues = CONFETTI_VALUES
 
   if (!badge) return null
 
@@ -81,21 +91,21 @@ export function BadgePopup({ badge, onClose }: BadgePopupProps) {
       {/* Confetti Effect */}
       {showConfetti && (
         <div className="absolute inset-0 overflow-hidden pointer-events-none">
-          {[...Array(50)].map((_, i) => (
+          {confettiValues.map((val, i) => (
             <div
               key={i}
               className="absolute animate-confetti"
               style={{
-                left: `${Math.random() * 100}%`,
-                animationDelay: `${Math.random() * 2}s`,
-                animationDuration: `${2 + Math.random() * 2}s`,
+                left: `${val.left}%`,
+                animationDelay: `${val.delay}s`,
+                animationDuration: `${val.duration}s`,
               }}
             >
               <Sparkles
                 className="w-4 h-4"
                 style={{
                   color: ['#FFD700', '#FF6B6B', '#4ECDC4', '#A855F7', '#3B82F6'][
-                    Math.floor(Math.random() * 5)
+                    val.colorIndex
                   ],
                 }}
               />

@@ -52,7 +52,7 @@ export function useGoogleAuth({ onCredential, onError }: UseGoogleAuthOptions) {
     }
   }, [])
 
-  const renderButton = useCallback((element: HTMLElement, options: any) => {
+  const renderButton = useCallback((element: HTMLElement, options: Record<string, unknown>) => {
     if (window.google?.accounts?.id) {
       window.google.accounts.id.renderButton(element, options)
     }
