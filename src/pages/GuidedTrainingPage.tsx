@@ -460,7 +460,7 @@ export default function GuidedTrainingPage() {
                 </button>
               </div>
               {showMenu && (
-                <div className="absolute right-0 top-full mt-2 w-52 rounded-xl glass p-2 z-50 animate-scale-in">
+                <div className="absolute right-0 top-full mt-2 w-52 rounded-xl p-2 z-50 animate-scale-in" style={{ background: 'rgba(10, 10, 12, 0.95)', border: '1px solid rgba(255,255,255,0.12)', backdropFilter: 'blur(20px)', WebkitBackdropFilter: 'blur(20px)' }}>
                   <button
                     className="training-menu-item w-full text-left rounded-lg hover:bg-white/5 transition-colors"
                     onClick={() => {
