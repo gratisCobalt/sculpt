@@ -23,6 +23,7 @@ import type { TrainingPlanDay, TrainingPlanExercise } from '@/types/database'
 interface ExerciseWithMachine extends TrainingPlanExercise {
   machine: { id: string; name: string } | null
   exercise_name?: string
+  exercise?: { id?: number; name?: string; name_de?: string; image_url?: string; video_url?: string }
 }
 
 interface WorkoutLog {
@@ -148,7 +149,7 @@ export default function GuidedTrainingPage() {
     const log: WorkoutLog = {
       exerciseId: currentExercise.id,
       machineId: currentExercise.machine?.id || null,
-      exerciseName: currentExercise.machine?.name || currentExercise.exercise_name || 'Übung',
+      exerciseName: currentExercise.exercise?.name_de || currentExercise.exercise?.name || currentExercise.exercise_name || 'Übung',
       weight: parseFloat(weight),
       reps: parseInt(reps),
       completed: true,
@@ -338,7 +339,7 @@ export default function GuidedTrainingPage() {
                     {index + 1}
                   </span>
                   <span className="font-medium">
-                    {exercise.machine?.name || exercise.exercise_name || 'Übung'}
+                    {exercise.exercise?.name_de || exercise.exercise?.name || exercise.exercise_name || 'Übung'}
                   </span>
                 </div>
               ))}
