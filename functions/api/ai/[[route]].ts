@@ -236,8 +236,9 @@ async function handleChat(ctx: RequestContext): Promise<Response> {
       },
     })
   } catch (error) {
-    console.error('Chat error:', error)
-    return errorResponse('Failed to process chat request', 500)
+    const detail = error instanceof Error ? error.message : String(error)
+    console.error('Chat error:', detail)
+    return errorResponse(`AI chat failed: ${detail}`, 500)
   }
 }
 
