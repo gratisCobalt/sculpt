@@ -243,6 +243,50 @@ async function handleGetUserBadges(ctx: RequestContext): Promise<Response> {
   }
 }
 
+// DELETE /api/users/me - Delete account and all associated data
+async function handleDeleteAccount(ctx: RequestContext): Promise<Response> {
+  const { request, env } = ctx
+
+  const userId = await getUserIdFromRequest(request, env)
+  if (!userId) return errorResponse('Unauthorized', 401)
+
+  try {
+    // Clean up tables that don't CASCADE from app_user.
+    // Use try/catch per statement so missing tables don't block deletion.
+    const cleanup = [
+      'DELETE FROM challenge WHERE challenger_id = ? OR opponent_id = ?',
+      'DELETE FROM friendship WHERE requester_id = ? OR addressee_id = ?',
+    ]
+    for (const sql of cleanup) {
+      try {
+        await env.database.prepare(sql).bind(userId, userId).run()
+      } catch {
+        // Table may not exist — continue
+      }
+    }
+
+    // Nullify training plans created by user (keep plans, remove author reference)
+    try {
+      await env.database.prepare(
+        'UPDATE training_plan SET created_by_id = NULL WHERE created_by_id = ?'
+      ).bind(userId).run()
+    } catch {
+      // Column may not exist
+    }
+
+    // Delete the user — CASCADE handles most related data
+    await env.database.prepare(
+      'DELETE FROM app_user WHERE id = ?'
+    ).bind(userId).run()
+
+    return jsonResponse({ success: true, message: 'Account and all data deleted' })
+  } catch (error) {
+    const detail = error instanceof Error ? error.message : String(error)
+    console.error('Delete account error:', detail)
+    return errorResponse('Failed to delete account', 500)
+  }
+}
+
 // Main request handler
 export const onRequest: PagesFunction<Env> = async (context) => {
   const { request, env } = context
@@ -280,6 +324,10 @@ export const onRequest: PagesFunction<Env> = async (context) => {
 
   if (request.method === 'GET' && path === '/search') {
     return handleSearchUsers(ctx)
+  }
+
+  if (request.method === 'DELETE' && path === '/me') {
+    return handleDeleteAccount(ctx)
   }
 
   return errorResponse('Not found', 404)

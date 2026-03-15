@@ -392,45 +392,18 @@ async function handleGeneratePlan(ctx: RequestContext): Promise<Response> {
       ).bind(...available_exercises).all()
     } else {
       exercisesResult = await env.database.prepare(
-        'SELECT id, name FROM exercise LIMIT 200'
+        'SELECT id, name FROM exercise LIMIT 50'
       ).all()
     }
 
     const exercises = (exercisesResult.results || []) as Record<string, unknown>[]
     const exerciseNames = exercises.map(e => e.name as string)
 
-    // Build system prompt for plan generation
-    const planSystemPrompt = `Du bist ein erfahrener Fitness-Trainer. Erstelle einen Trainingsplan basierend auf den Vorgaben des Nutzers.
-
-Verfügbare Übungen: ${exerciseNames.join(', ')}
-
-WICHTIG: Antworte NUR mit validem JSON in folgendem Format (kein Markdown, kein Text davor oder danach):
-{
-  "name": "Plan Name (English)",
-  "name_de": "Plan Name (Deutsch)",
-  "description": "Short description in English",
-  "description_de": "Kurze Beschreibung auf Deutsch",
-  "days": [
-    {
-      "day_number": 1,
-      "name": "Day Name",
-      "name_de": "Tagesname",
-      "focus_description": "Brust, Schultern, Trizeps",
-      "exercises": [
-        {
-          "exercise_name": "Exakter Name der Übung aus der Liste",
-          "sets": 3,
-          "min_reps": 8,
-          "max_reps": 12,
-          "rest_seconds": 90,
-          "notes": "Kontrollierte Bewegung"
-        }
-      ]
-    }
-  ]
-}
-
-Verwende NUR Übungen aus der obigen Liste. Die exercise_name müssen exakt mit den Namen übereinstimmen.`
+    // Build system prompt - keep concise for faster AI response
+    const planSystemPrompt = `Fitness-Trainer. Antworte NUR mit JSON, kein Text/Markdown.
+Erlaubte Übungen: ${exerciseNames.join(', ')}
+Format: {"name":"EN","name_de":"DE","description":"EN","description_de":"DE","days":[{"day_number":1,"name":"EN","name_de":"DE","focus_description":"...","exercises":[{"exercise_name":"EXAKT aus Liste","sets":3,"min_reps":8,"max_reps":12,"rest_seconds":90,"notes":"..."}]}]}
+NUR Übungen aus der Liste verwenden. 4-5 Übungen pro Tag. Kurze notes.`
 
     const userPrompt = `Erstelle einen Trainingsplan mit folgenden Vorgaben:
 - Fitnessziel: ${fitness_goal}
@@ -441,7 +414,7 @@ Verwende NUR Übungen aus der obigen Liste. Die exercise_name müssen exakt mit 
     const provider = getProvider(env)
     const aiResponse = await provider.chatSync(
       [{ role: 'user', content: userPrompt }],
-      { systemPrompt: planSystemPrompt, temperature: 0.7 }
+      { systemPrompt: planSystemPrompt, temperature: 0.3 }
     )
 
     // Strip markdown code blocks if present

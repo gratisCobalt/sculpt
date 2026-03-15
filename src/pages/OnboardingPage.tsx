@@ -154,23 +154,25 @@ export default function OnboardingPage() {
       setGenerationProgress(0)
       setGenerationError(null)
 
-      // Fake progress animation: 0-80% fast (2s), 80-95% slower
+      // Fake progress animation: 0-60% in ~10s, 60-90% slower over ~40s, 90-95% crawl
       let progress = 0
       progressIntervalRef.current = setInterval(() => {
-        if (progress < 80) {
-          progress += 4 // 0-80 in ~2s
+        if (progress < 60) {
+          progress += 0.6 // 0-60 in ~10s
+        } else if (progress < 90) {
+          progress += 0.075 // 60-90 in ~40s
         } else if (progress < 95) {
-          progress += 0.5 // 80-95 in ~3s
+          progress += 0.025 // 90-95 in ~20s
         }
         setGenerationProgress(Math.min(progress, 95))
       }, 100)
 
-      // Set 20s timeout
+      // Set 90s timeout (AI plan generation can take 30-60s)
       timeoutRef.current = setTimeout(() => {
         if (progressIntervalRef.current) clearInterval(progressIntervalRef.current)
         setGenerationError('Trainingsplan konnte nicht erstellt werden. Bitte versuche es später erneut oder kontaktiere den Support unter info@sculpt-app.de')
         setIsGeneratingPlan(false)
-      }, 20000)
+      }, 90000)
 
       // Call API to generate training plan
       await api.generateTrainingPlan({
