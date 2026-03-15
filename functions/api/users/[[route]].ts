@@ -243,6 +243,115 @@ async function handleGetUserBadges(ctx: RequestContext): Promise<Response> {
   }
 }
 
+// GET /api/users/me/training-plan - Get user's active training plan
+async function handleGetUserPlan(ctx: RequestContext): Promise<Response> {
+  const { request, env } = ctx
+
+  const userId = await getUserIdFromRequest(request, env)
+  if (!userId) return errorResponse('Unauthorized', 401)
+
+  try {
+    const userPlan = await env.database.prepare(`
+      SELECT utp.*, tp.name, tp.name_de, tp.days_per_week
+      FROM user_training_plan utp
+      JOIN training_plan tp ON utp.training_plan_id = tp.id
+      WHERE utp.user_id = ? AND utp.is_active = 1
+    `).bind(userId).first()
+
+    if (!userPlan) {
+      return jsonResponse(null)
+    }
+
+    const currentDay = await env.database.prepare(`
+      SELECT * FROM training_plan_day
+      WHERE training_plan_id = ? AND day_number = ?
+    `).bind(
+      (userPlan as Record<string, unknown>).training_plan_id,
+      (userPlan as Record<string, unknown>).current_day
+    ).first()
+
+    let dayExercises: unknown[] = []
+    if (currentDay) {
+      const exercises = await env.database.prepare(`
+        SELECT tpe.*, e.name, e.name_de, e.image_url, e.video_url
+        FROM training_plan_exercise tpe
+        JOIN exercise e ON tpe.exercise_id = e.id
+        WHERE tpe.training_plan_day_id = ?
+        ORDER BY tpe.order_index
+      `).bind((currentDay as Record<string, unknown>).id).all()
+
+      dayExercises = (exercises.results || []).map((tpe: Record<string, unknown>) => ({
+        id: tpe.id,
+        order_index: tpe.order_index,
+        sets: tpe.sets,
+        min_reps: tpe.min_reps,
+        max_reps: tpe.max_reps,
+        exercise: {
+          id: tpe.exercise_id,
+          name: tpe.name,
+          name_de: tpe.name_de,
+          image_url: tpe.image_url,
+          video_url: tpe.video_url,
+        },
+      }))
+    }
+
+    return jsonResponse({
+      ...userPlan,
+      current_day_details: currentDay ? {
+        ...currentDay,
+        exercises: dayExercises,
+      } : null,
+    })
+  } catch (error) {
+    console.error('Get user training plan error:', error)
+    return errorResponse('Failed to get training plan', 500)
+  }
+}
+
+// POST /api/users/me/training-plan - Set user's training plan
+async function handleSetUserPlan(ctx: RequestContext): Promise<Response> {
+  const { request, env } = ctx
+
+  const userId = await getUserIdFromRequest(request, env)
+  if (!userId) return errorResponse('Unauthorized', 401)
+
+  try {
+    const body = await request.json() as { training_plan_id: number }
+    const { training_plan_id } = body
+
+    if (!training_plan_id) {
+      return errorResponse('training_plan_id is required', 400)
+    }
+
+    const plan = await env.database.prepare(
+      'SELECT * FROM training_plan WHERE id = ?'
+    ).bind(training_plan_id).first()
+
+    if (!plan) {
+      return errorResponse('Training plan not found', 404)
+    }
+
+    const now = nowISO()
+
+    await env.database.prepare(
+      'UPDATE user_training_plan SET is_active = 0 WHERE user_id = ?'
+    ).bind(userId).run()
+
+    await env.database.prepare(`
+      INSERT INTO user_training_plan (user_id, training_plan_id, current_day, started_at, is_active)
+      VALUES (?, ?, 1, ?, 1)
+      ON CONFLICT(user_id, training_plan_id)
+      DO UPDATE SET is_active = 1, current_day = 1, started_at = ?
+    `).bind(userId, training_plan_id, now, now).run()
+
+    return jsonResponse({ success: true })
+  } catch (error) {
+    console.error('Set user training plan error:', error)
+    return errorResponse('Failed to set training plan', 500)
+  }
+}
+
 // DELETE /api/users/me - Delete account and all associated data
 async function handleDeleteAccount(ctx: RequestContext): Promise<Response> {
   const { request, env } = ctx
@@ -328,6 +437,16 @@ export const onRequest: PagesFunction<Env> = async (context) => {
 
   if (request.method === 'DELETE' && path === '/me') {
     return handleDeleteAccount(ctx)
+  }
+
+  // User training plan routes (must be in users handler for Cloudflare Pages routing)
+  if (path === '/me/training-plan') {
+    if (request.method === 'GET') {
+      return handleGetUserPlan(ctx)
+    }
+    if (request.method === 'POST') {
+      return handleSetUserPlan(ctx)
+    }
   }
 
   return errorResponse('Not found', 404)
