@@ -450,7 +450,7 @@ export default function GuidedTrainingPage() {
         <Card className="mb-6">
           <CardContent className="p-6">
             <h2 className="text-2xl font-bold mb-2">
-              {currentExercise.machine?.name || currentExercise.exercise_name || 'Übung'}
+              {currentExercise.exercise?.name_de || currentExercise.exercise?.name || currentExercise.exercise_name || 'Übung'}
             </h2>
             <p className="text-sm text-[hsl(var(--primary))]">
               Satz {currentSetNumber}
