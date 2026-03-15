@@ -331,6 +331,17 @@ class ApiClient {
   }
 
   // =====================================================
+  // FEEDBACK
+  // =====================================================
+
+  async submitFeedback(data: { message: string; imageUrls?: string[]; category?: string }) {
+    return this.request<{ success: boolean }>('/api/feedback', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    })
+  }
+
+  // =====================================================
   // BADGES
   // =====================================================
 

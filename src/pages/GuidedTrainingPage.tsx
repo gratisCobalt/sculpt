@@ -403,18 +403,55 @@ export default function GuidedTrainingPage() {
                   {exercises.length} Übungen in diesem Training
                 </p>
 
-                <div className="space-y-2 mb-8">
+                <div className="space-y-3 mb-8">
                   {exercises.map((exercise, index) => (
                     <div
                       key={exercise.id}
-                      className="flex items-center gap-3 p-3 rounded-xl glass"
+                      className="relative rounded-2xl glass glass-hover overflow-hidden group"
+                      style={{ animationDelay: `${index * 60}ms` }}
                     >
-                      <span className="w-6 h-6 rounded-full bg-[hsl(var(--surface-strong))] flex items-center justify-center text-xs font-medium">
-                        {index + 1}
-                      </span>
-                      <span className="font-medium">
-                        {exerciseName(exercise)}
-                      </span>
+                      <div className="flex items-center gap-4 p-3 pr-4">
+                        {/* Exercise image or fallback */}
+                        <div className="relative w-14 h-14 rounded-xl overflow-hidden flex-shrink-0 bg-[hsl(var(--surface-strong))]">
+                          {exercise.exercise?.image_url ? (
+                            <img
+                              src={exercise.exercise.image_url}
+                              alt={exerciseName(exercise)}
+                              className="w-full h-full object-cover"
+                            />
+                          ) : (
+                            <div className="w-full h-full flex items-center justify-center text-lg font-bold text-[hsl(var(--muted-foreground))]">
+                              {index + 1}
+                            </div>
+                          )}
+                          {/* Index badge overlay */}
+                          <span className="absolute -top-0.5 -left-0.5 w-5 h-5 rounded-br-lg bg-black/70 backdrop-blur-sm flex items-center justify-center text-[10px] font-bold text-white/80">
+                            {index + 1}
+                          </span>
+                        </div>
+
+                        {/* Info */}
+                        <div className="flex-1 min-w-0">
+                          <p className="font-semibold text-[15px] truncate leading-tight">
+                            {exerciseName(exercise)}
+                          </p>
+                          <div className="flex items-center gap-2 mt-1">
+                            <span className="text-xs font-medium px-2 py-0.5 rounded-full bg-[hsl(var(--primary))]/10 text-[hsl(var(--primary))]">
+                              {exercise.sets || 3} Sätze
+                            </span>
+                            <span className="text-xs text-[hsl(var(--muted-foreground))]">
+                              {exercise.min_reps}–{exercise.max_reps} Wdh
+                            </span>
+                          </div>
+                        </div>
+
+                        {/* Rest time indicator */}
+                        {exercise.rest_seconds > 0 && (
+                          <span className="text-[11px] text-[hsl(var(--muted-foreground))] tabular-nums">
+                            {exercise.rest_seconds}s
+                          </span>
+                        )}
+                      </div>
                     </div>
                   ))}
                 </div>
