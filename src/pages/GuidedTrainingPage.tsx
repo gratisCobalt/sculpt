@@ -61,9 +61,10 @@ export default function GuidedTrainingPage() {
     queryFn: async () => {
       if (!user?.id) return []
       try {
-        const plan = await api.getUserTrainingPlan()
-        if (!plan?.days) return []
-        return plan.days as TrainingPlanDay[]
+        const userPlan = await api.getUserTrainingPlan()
+        if (!userPlan?.training_plan_id) return []
+        const fullPlan = await api.getTrainingPlan(userPlan.training_plan_id)
+        return (fullPlan?.days || []) as TrainingPlanDay[]
       } catch {
         return []
       }
@@ -77,8 +78,10 @@ export default function GuidedTrainingPage() {
     queryFn: async () => {
       if (!dayId) return []
       try {
-        const plan = await api.getUserTrainingPlan()
-        const day = plan?.days?.find((d: TrainingPlanDay) => String(d.id) === dayId)
+        const userPlan = await api.getUserTrainingPlan()
+        if (!userPlan?.training_plan_id) return []
+        const fullPlan = await api.getTrainingPlan(userPlan.training_plan_id)
+        const day = fullPlan?.days?.find((d: TrainingPlanDay) => String(d.id) === dayId)
         return (day?.exercises || []) as ExerciseWithMachine[]
       } catch {
         return []
