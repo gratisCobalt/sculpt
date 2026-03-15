@@ -352,6 +352,113 @@ async function handleSetUserPlan(ctx: RequestContext): Promise<Response> {
   }
 }
 
+// POST /api/users/me/badges/:id/notify - Mark badge as notified
+async function handleMarkBadgeNotified(ctx: RequestContext): Promise<Response> {
+  const { request, env, url } = ctx
+
+  const userId = await getUserIdFromRequest(request, env)
+  if (!userId) return errorResponse('Unauthorized', 401)
+
+  const match = url.pathname.match(/\/api\/users\/me\/badges\/(\d+)\/notify$/)
+  if (!match) return errorResponse('Invalid path', 400)
+
+  const badgeId = parseInt(match[1])
+
+  try {
+    await env.database.prepare(
+      'UPDATE user_badge SET notified = 1 WHERE user_id = ? AND badge_id = ?'
+    ).bind(userId, badgeId).run()
+
+    return jsonResponse({ success: true })
+  } catch (error) {
+    console.error('Mark badge notified error:', error)
+    return errorResponse('Failed to mark badge notified', 500)
+  }
+}
+
+// GET /api/users/me/badges/check - Check for newly earned badges
+async function handleCheckNewBadges(ctx: RequestContext): Promise<Response> {
+  const { request, env } = ctx
+
+  const userId = await getUserIdFromRequest(request, env)
+  if (!userId) return errorResponse('Unauthorized', 401)
+
+  try {
+    // Get user stats for badge evaluation
+    const user = await env.database.prepare(
+      'SELECT current_streak, longest_streak FROM app_user WHERE id = ?'
+    ).bind(userId).first<Record<string, unknown>>()
+
+    // Count total workouts
+    const workoutCount = await env.database.prepare(
+      'SELECT COUNT(*) as count FROM workout_session WHERE user_id = ?'
+    ).bind(userId).first<{ count: number }>()
+
+    // Get max weight lifted
+    const maxWeight = await env.database.prepare(`
+      SELECT MAX(ws.weight_kg) as max_weight
+      FROM workout_set ws
+      JOIN workout_session wse ON ws.workout_session_id = wse.id
+      WHERE wse.user_id = ?
+    `).bind(userId).first<{ max_weight: number }>()
+
+    // Get total volume
+    const totalVolume = await env.database.prepare(`
+      SELECT SUM(ws.weight_kg * ws.reps) as total_volume
+      FROM workout_set ws
+      JOIN workout_session wse ON ws.workout_session_id = wse.id
+      WHERE wse.user_id = ?
+    `).bind(userId).first<{ total_volume: number }>()
+
+    // Get all badges not yet earned
+    const unearnedBadges = await env.database.prepare(`
+      SELECT b.* FROM badge b
+      WHERE b.id NOT IN (SELECT badge_id FROM user_badge WHERE user_id = ?)
+    `).bind(userId).all()
+
+    const newBadges: unknown[] = []
+    const now = nowISO()
+
+    for (const badge of (unearnedBadges.results || []) as Record<string, unknown>[]) {
+      let earned = false
+      const threshold = badge.threshold_value as number
+
+      switch (badge.category) {
+        case 'workout_count':
+          earned = (workoutCount?.count || 0) >= threshold
+          break
+        case 'streak':
+          earned = ((user?.longest_streak as number) || 0) >= threshold
+          break
+        case 'weight':
+          earned = (maxWeight?.max_weight || 0) >= threshold
+          break
+        case 'volume':
+          earned = (totalVolume?.total_volume || 0) >= threshold
+          break
+      }
+
+      if (earned) {
+        await env.database.prepare(
+          'INSERT INTO user_badge (user_id, badge_id, earned_at, notified) VALUES (?, ?, ?, 0)'
+        ).bind(userId, badge.id, now).run()
+
+        // Award XP
+        await env.database.prepare(
+          'UPDATE app_user SET xp_total = xp_total + ?, updated_at = ? WHERE id = ?'
+        ).bind(badge.points || 10, now, userId).run()
+
+        newBadges.push(badge)
+      }
+    }
+
+    return jsonResponse({ newBadges })
+  } catch (error) {
+    console.error('Check new badges error:', error)
+    return errorResponse('Failed to check badges', 500)
+  }
+}
+
 // DELETE /api/users/me - Delete account and all associated data
 async function handleDeleteAccount(ctx: RequestContext): Promise<Response> {
   const { request, env } = ctx
@@ -425,6 +532,15 @@ export const onRequest: PagesFunction<Env> = async (context) => {
 
   if (request.method === 'GET' && path === '/me/level') {
     return handleGetUserLevel(ctx)
+  }
+
+  if (request.method === 'GET' && path === '/me/badges/check') {
+    return handleCheckNewBadges(ctx)
+  }
+
+  // POST /api/users/me/badges/:id/notify
+  if (request.method === 'POST' && path.match(/^\/me\/badges\/\d+\/notify$/)) {
+    return handleMarkBadgeNotified(ctx)
   }
 
   if (request.method === 'GET' && path === '/me/badges') {
