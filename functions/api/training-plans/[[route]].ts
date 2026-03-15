@@ -393,12 +393,18 @@ async function handleReorderPlanExercises(ctx: RequestContext): Promise<Response
       return errorResponse('exercise_ids array is required', 400)
     }
 
-    // Update order for each exercise
-    for (let i = 0; i < body.exercise_ids.length; i++) {
-      await env.database.prepare(
+    // Clear order_index first to avoid UNIQUE(training_plan_day_id, order_index) violations
+    const clearStmts = body.exercise_ids.map((id, i) =>
+      env.database.prepare(
         'UPDATE training_plan_exercise SET order_index = ? WHERE id = ? AND training_plan_day_id = ?'
-      ).bind(i + 1, body.exercise_ids[i], dayId).run()
-    }
+      ).bind(-(i + 1), id, dayId)
+    )
+    const setStmts = body.exercise_ids.map((id, i) =>
+      env.database.prepare(
+        'UPDATE training_plan_exercise SET order_index = ? WHERE id = ? AND training_plan_day_id = ?'
+      ).bind(i + 1, id, dayId)
+    )
+    await env.database.batch([...clearStmts, ...setStmts])
 
     return jsonResponse({ success: true })
   } catch (error) {

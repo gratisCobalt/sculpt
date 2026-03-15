@@ -323,13 +323,12 @@ export default function TrainingPlanPage() {
             }),
           }
         })
-      } catch (e) {
-        console.error('Optimistic update failed:', e)
+      } catch {
+        // optimistic update failed, mutation will still fire
       }
       return { previous }
     },
-    onError: (err, _vars, context) => {
-      console.error('Reorder failed:', err)
+    onError: (_err, _vars, context) => {
       if (context?.previous) {
         queryClient.setQueryData(['trainingPlan', planId], context.previous)
       }
