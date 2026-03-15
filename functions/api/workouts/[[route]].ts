@@ -29,8 +29,9 @@ async function handleCreateWorkout(ctx: RequestContext): Promise<Response> {
   if (!userId) return errorResponse('Unauthorized', 401)
 
   try {
-    const body = await request.json() as { 
+    const body = await request.json() as {
       training_plan_day_id?: number
+      performed_at?: string
       sets: WorkoutSet[]
     }
     const { training_plan_day_id, sets } = body
@@ -39,8 +40,8 @@ async function handleCreateWorkout(ctx: RequestContext): Promise<Response> {
       return errorResponse('Sets are required', 400)
     }
 
-    const now = nowISO()
-    
+    const now = body.performed_at || nowISO()
+
     // Create workout session
     const sessionResult = await env.database.prepare(`
       INSERT INTO workout_session (user_id, training_plan_day_id, started_at)

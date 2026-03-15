@@ -290,6 +290,7 @@ class ApiClient {
 
   async createWorkout(data: {
     training_plan_day_id?: number
+    performed_at?: string
     sets: {
       exercise_id: number
       set_number: number

@@ -1,6 +1,6 @@
 import { useState, useEffect, useId } from 'react'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
-import { X, Plus, Trash2, MessageSquare, Loader2, Dumbbell } from 'lucide-react'
+import { X, Plus, Trash2, MessageSquare, Loader2, Dumbbell, Calendar } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { api } from '@/lib/api'
@@ -31,6 +31,7 @@ export function ExerciseInputModal({ isOpen, onClose, exercise }: ExerciseInputM
     const baseId = useId()
 
     const [sets, setSets] = useState<WorkoutSet[]>([])
+    const [workoutDate, setWorkoutDate] = useState('')
     const [workoutNote, setWorkoutNote] = useState('')
     const [showNoteInput, setShowNoteInput] = useState(false)
 
@@ -47,6 +48,8 @@ export function ExerciseInputModal({ isOpen, onClose, exercise }: ExerciseInputM
                 reps: '',
             }))
         )
+        // eslint-disable-next-line react-hooks/set-state-in-effect
+        setWorkoutDate(new Date().toISOString().slice(0, 10))
         setWorkoutNote('')
         setShowNoteInput(false)
     }, [isOpen, baseId])
@@ -58,6 +61,7 @@ export function ExerciseInputModal({ isOpen, onClose, exercise }: ExerciseInputM
             if (validSets.length === 0) return
 
             await api.createWorkout({
+                performed_at: workoutDate ? new Date(workoutDate + 'T12:00:00').toISOString() : undefined,
                 sets: validSets.map((set, index) => {
                     return {
                         exercise_id: exercise.id,
@@ -169,7 +173,20 @@ export function ExerciseInputModal({ isOpen, onClose, exercise }: ExerciseInputM
                     </div>
                 )}
 
-                {/* Scrollable Content (Sets) - Removed overflow-y-auto to let parent scroll */}
+                {/* Date Picker */}
+                <div className="px-4 pt-4 pb-0">
+                    <div className="flex items-center gap-2">
+                        <Calendar className="w-4 h-4 text-[hsl(var(--muted-foreground))]" />
+                        <Input
+                            type="date"
+                            value={workoutDate}
+                            onChange={(e) => setWorkoutDate(e.target.value)}
+                            className="h-9 text-sm bg-[hsl(var(--background))] flex-1"
+                        />
+                    </div>
+                </div>
+
+                {/* Scrollable Content (Sets) */}
                 <div className="p-4 space-y-4">
                     <div className="flex items-center justify-between">
                         <h3 className="font-semibold text-[hsl(var(--foreground))]">Sätze</h3>
