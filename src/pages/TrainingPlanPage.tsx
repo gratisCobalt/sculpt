@@ -38,14 +38,22 @@ export default function TrainingPlanPage() {
   const { user } = useAuth()
   const [selectedDayId, setSelectedDayId] = useState<number | null>(null)
 
-  // Fetch training plan via API
-  const { data: planData, isLoading } = useQuery({
+  // First get user's active plan assignment
+  const { data: userPlan, isLoading: isLoadingUserPlan } = useQuery({
     queryKey: ['userTrainingPlan', user?.id],
     queryFn: () => api.getUserTrainingPlan(),
     enabled: !!user?.id,
   })
 
-  const plan = planData
+  // Then fetch the full plan with all days and exercises
+  const { data: planData, isLoading: isLoadingPlan } = useQuery({
+    queryKey: ['trainingPlan', userPlan?.training_plan_id],
+    queryFn: () => api.getTrainingPlan(userPlan.training_plan_id),
+    enabled: !!userPlan?.training_plan_id,
+  })
+
+  const isLoading = isLoadingUserPlan || isLoadingPlan
+  const plan = planData ? { ...planData, current_day: userPlan?.current_day } : null
   const days: PlanDay[] = useMemo(() => plan?.days || [], [plan?.days])
   const effectiveSelectedDayId = selectedDayId ?? (days.length > 0 ? days[0].id : null)
   const selectedDay = days.find((d) => d.id === effectiveSelectedDayId)
