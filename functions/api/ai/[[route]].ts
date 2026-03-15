@@ -392,7 +392,7 @@ async function handleGeneratePlan(ctx: RequestContext): Promise<Response> {
       ).bind(...available_exercises).all()
     } else {
       exercisesResult = await env.database.prepare(
-        'SELECT id, name FROM exercise LIMIT 200'
+        'SELECT id, name FROM exercise LIMIT 50'
       ).all()
     }
 
