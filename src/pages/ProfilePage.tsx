@@ -159,7 +159,7 @@ export default function ProfilePage() {
       label: 'Feedback geben',
       description: 'Hilf uns, Sculpt zu verbessern',
       onClick: () => {
-        // TODO: Open feedback modal
+        window.open('mailto:feedback@sculpt-app.de?subject=Sculpt%20Feedback', '_blank')
       },
     },
   ]
