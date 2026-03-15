@@ -215,7 +215,7 @@ export function ExerciseHistoryModal({
                                 <div className="flex items-center gap-2">
                                   <span className="font-semibold">{set.weight} kg</span>
                                   <span className="text-[hsl(var(--muted-foreground))]">×</span>
-                                  <span className="font-semibold">{set.reps}</span>
+                                  <span className="font-semibold">{set.reps} Wdh</span>
                                   {set.isPR && (
                                     <span className="px-1.5 py-0.5 rounded text-[10px] font-medium bg-[hsl(var(--primary))]/20 text-[hsl(var(--primary))]">
                                       PR
