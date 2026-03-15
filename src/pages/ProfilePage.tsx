@@ -6,6 +6,7 @@ import {
   RefreshCw,
   MessageSquare,
   LogOut,
+  Trash2,
   ChevronRight,
   Info,
   Trophy,
@@ -120,6 +121,22 @@ export default function ProfilePage() {
     queryKey: ['allBadges'],
     queryFn: () => api.getAllBadges(),
   })
+
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
+  const [isDeleting, setIsDeleting] = useState(false)
+
+  const handleDeleteAccount = async () => {
+    setIsDeleting(true)
+    try {
+      await api.deleteAccount()
+      await signOut()
+      navigate('/')
+    } catch (error) {
+      console.error('Delete account error:', error)
+      setIsDeleting(false)
+      setShowDeleteConfirm(false)
+    }
+  }
 
   const handleSignOut = async () => {
     try {
@@ -416,12 +433,54 @@ export default function ProfilePage() {
       {/* Sign Out */}
       <Button
         variant="destructive"
-        className="w-full mb-8"
+        className="w-full mb-4"
         onClick={handleSignOut}
       >
         <LogOut className="w-5 h-5 mr-2" />
         Abmelden
       </Button>
+
+      {/* Delete Account */}
+      {!showDeleteConfirm ? (
+        <button
+          onClick={() => setShowDeleteConfirm(true)}
+          className="w-full text-center text-xs text-[hsl(var(--muted-foreground))] underline mb-8"
+        >
+          Account und alle Daten löschen
+        </button>
+      ) : (
+        <div className="glass rounded-xl p-4 mb-8">
+          <p className="text-sm font-medium text-red-400 mb-2">Account wirklich löschen?</p>
+          <p className="text-xs text-[hsl(var(--muted-foreground))] mb-4">
+            Alle deine Daten werden unwiderruflich gelöscht: Workouts, Trainingspläne, Chat-Verlauf, Buddys, Badges und Coins.
+          </p>
+          <div className="flex gap-2">
+            <Button
+              variant="ghost"
+              size="sm"
+              className="flex-1"
+              onClick={() => setShowDeleteConfirm(false)}
+              disabled={isDeleting}
+            >
+              Abbrechen
+            </Button>
+            <Button
+              variant="destructive"
+              size="sm"
+              className="flex-1"
+              onClick={handleDeleteAccount}
+              disabled={isDeleting}
+            >
+              {isDeleting ? (
+                <Loader2 className="w-4 h-4 animate-spin mr-1" />
+              ) : (
+                <Trash2 className="w-4 h-4 mr-1" />
+              )}
+              Endgültig löschen
+            </Button>
+          </div>
+        </div>
+      )}
 
       {/* Build Info */}
       <div className="flex items-center justify-center gap-2 text-xs text-[hsl(var(--muted-foreground))]">

@@ -133,6 +133,12 @@ class ApiClient {
     })
   }
 
+  async deleteAccount() {
+    return this.request<{ success: boolean }>('/api/users/me', {
+      method: 'DELETE',
+    })
+  }
+
   async setFocusAreas(bodyPartIds: number[]) {
     return this.request<{ success: boolean }>('/api/users/me/focus-areas', {
       method: 'POST',
