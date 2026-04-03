@@ -1,0 +1,29 @@
+{
+  "hooks": {
+    "PostToolUse": [
+      {
+        "matcher": "Write|Edit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node .claude/hooks/ts-validate.cjs",
+            "timeout": 20,
+            "statusMessage": "Validating TypeScript/JSON/CSS syntax..."
+          }
+        ]
+      }
+    ],
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node .claude/hooks/build-check-stop.cjs",
+            "timeout": 60,
+            "statusMessage": "Running build + lint check..."
+          }
+        ]
+      }
+    ]
+  }
+}
