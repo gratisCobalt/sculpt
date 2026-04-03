@@ -335,6 +335,14 @@ body {
   z-index: 1;
 }
 
+.guided-training-layer .glass {
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.guided-training-layer .glass-hover:hover {
+  background: rgba(255, 255, 255, 0.12);
+}
+
 .guided-training-layer {
   position: relative;
   z-index: 2;
