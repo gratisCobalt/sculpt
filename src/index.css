@@ -336,11 +336,11 @@ body {
 }
 
 .guided-training-layer .glass {
-  background: rgba(255, 255, 255, 0.08);
+  background: rgba(28, 28, 28, 0.8);
 }
 
 .guided-training-layer .glass-hover:hover {
-  background: rgba(255, 255, 255, 0.12);
+  background: rgba(28, 28, 28, 0.8);
 }
 
 .guided-training-layer {
