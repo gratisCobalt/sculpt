@@ -11,6 +11,7 @@ import {
   MoreVertical,
   Plus,
   Trash2,
+  Pencil,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { SkeletonList, Loader } from '@/components/ui/loader'
@@ -53,6 +54,7 @@ export default function GuidedTrainingPage() {
   const [showSummary, setShowSummary] = useState(false)
   const [showConfetti, setShowConfetti] = useState(false)
   const [showMenu, setShowMenu] = useState(false)
+  const [editingSets, setEditingSets] = useState(false)
 
   // Fetch available days if no dayId provided - use API
   const { data: days, isLoading: daysLoading } = useQuery({
@@ -166,7 +168,7 @@ export default function GuidedTrainingPage() {
 
     const name = currentExercise.exercise?.name_de || currentExercise.exercise?.name || currentExercise.exercise_name || 'Übung'
     const logs: WorkoutLog[] = validSets.map(s => ({
-      exerciseId: currentExercise.id,
+      exerciseId: currentExercise.exercise_id ?? currentExercise.exercise?.id,
       machineId: currentExercise.machine?.id || null,
       exerciseName: name,
       weight: parseFloat(s.weight) || 0,
@@ -183,6 +185,7 @@ export default function GuidedTrainingPage() {
     if (currentExerciseIndex < (exercises?.length || 0) - 1) {
       // Move to next exercise
       setCurrentExerciseIndex(prev => prev + 1)
+      setEditingSets(false)
     } else {
       // Last exercise → training complete
       setShowConfetti(true)
@@ -193,6 +196,7 @@ export default function GuidedTrainingPage() {
   const handleSkip = () => {
     if (currentExerciseIndex < (exercises?.length || 0) - 1) {
       setCurrentExerciseIndex(prev => prev + 1)
+      setEditingSets(false)
     } else {
       setShowSummary(true)
     }
@@ -210,24 +214,14 @@ export default function GuidedTrainingPage() {
     ex.exercise?.name_de || ex.exercise?.name || ex.exercise_name || 'Übung'
 
   const progressPercent = exercises?.length
-    ? Math.round((currentExerciseIndex / exercises.length) * 100)
+    ? Math.round(((currentExerciseIndex + 1) / exercises.length) * 100)
     : 0
 
   // Performance graph: SVG sparkline for last workout data
   const renderPerformanceGraph = () => {
     const sets = lastWorkoutData?.sets
     if (!sets || Object.keys(sets).length < 2) {
-      return (
-        <svg viewBox="0 0 300 120" preserveAspectRatio="none">
-          <defs>
-            <linearGradient id="training-gradient-empty" x1="0" y1="0" x2="0" y2="1">
-              <stop offset="0%" stopColor="hsl(var(--primary))" stopOpacity="0.15" />
-              <stop offset="100%" stopColor="hsl(var(--primary))" stopOpacity="0" />
-            </linearGradient>
-          </defs>
-          <rect x="0" y="0" width="300" height="120" fill="url(#training-gradient-empty)" />
-        </svg>
-      )
+      return null
     }
 
     const data = Object.values(sets).map((s: { weight: number; reps: number }) => s.weight * s.reps)
@@ -583,7 +577,12 @@ export default function GuidedTrainingPage() {
                 {/* Header row */}
                 <div className="flex items-center justify-between">
                   <span className="training-field-label">Sätze</span>
-                  <span className="text-xs text-[hsl(var(--muted-foreground))]">kg × Wdh</span>
+                  <button
+                    onClick={() => setEditingSets(!editingSets)}
+                    className={`p-1.5 rounded-lg transition-colors ${editingSets ? 'text-[hsl(var(--primary))] bg-[hsl(var(--primary))]/10' : 'text-[hsl(var(--muted-foreground))] hover:text-[hsl(var(--foreground))]'}`}
+                  >
+                    <Pencil className="w-3.5 h-3.5" />
+                  </button>
                 </div>
 
                 {/* Set rows */}
@@ -595,7 +594,7 @@ export default function GuidedTrainingPage() {
                         <span className="w-7 h-8 flex items-center justify-center rounded-md bg-white/5 text-xs font-medium text-[hsl(var(--muted-foreground))]">
                           {index + 1}
                         </span>
-                        <div className="training-field flex-1">
+                        <div className="training-field flex-1 relative">
                           <input
                             type="number"
                             step="0.5"
@@ -604,37 +603,45 @@ export default function GuidedTrainingPage() {
                             value={setInput.weight}
                             onChange={(e) => updateSetInput(index, 'weight', e.target.value)}
                             autoFocus={index === 0}
+                            className="pr-8"
                           />
+                          <span className="absolute right-2 top-1/2 -translate-y-1/2 text-[11px] text-[hsl(var(--muted-foreground))] pointer-events-none">kg</span>
                         </div>
                         <span className="text-[hsl(var(--muted-foreground))] text-sm">×</span>
-                        <div className="training-field flex-1">
+                        <div className="training-field flex-1 relative">
                           <input
                             type="number"
                             min="1"
                             placeholder={lastSet ? `${lastSet.reps}` : '0'}
                             value={setInput.reps}
                             onChange={(e) => updateSetInput(index, 'reps', e.target.value)}
+                            className="pr-10"
                           />
+                          <span className="absolute right-2 top-1/2 -translate-y-1/2 text-[11px] text-[hsl(var(--muted-foreground))] pointer-events-none">Wdh</span>
                         </div>
-                        <button
-                          onClick={() => removeSetInput(index)}
-                          disabled={setInputs.length <= 1}
-                          className="p-1.5 rounded-lg text-red-400 hover:bg-red-400/10 transition-colors disabled:opacity-20 disabled:cursor-not-allowed"
-                        >
-                          <Trash2 className="w-3.5 h-3.5" />
-                        </button>
+                        {editingSets && (
+                          <button
+                            onClick={() => removeSetInput(index)}
+                            disabled={setInputs.length <= 1}
+                            className="p-1.5 rounded-lg text-red-400 hover:bg-red-400/10 transition-colors disabled:opacity-20 disabled:cursor-not-allowed"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
+                        )}
                       </div>
                     )
                   })}
 
                   {/* Add set button */}
-                  <button
-                    onClick={addSetInput}
-                    className="w-full flex items-center justify-center gap-1.5 py-2 rounded-xl border border-dashed border-white/15 text-[hsl(var(--muted-foreground))] hover:border-[hsl(var(--primary))] hover:text-[hsl(var(--primary))] transition-colors text-sm"
-                  >
-                    <Plus className="w-3.5 h-3.5" />
-                    Satz hinzufügen
-                  </button>
+                  {editingSets && (
+                    <button
+                      onClick={addSetInput}
+                      className="w-full flex items-center justify-center gap-1.5 py-2 rounded-xl border border-dashed border-white/15 text-[hsl(var(--muted-foreground))] hover:border-[hsl(var(--primary))] hover:text-[hsl(var(--primary))] transition-colors text-sm"
+                    >
+                      <Plus className="w-3.5 h-3.5" />
+                      Satz hinzufügen
+                    </button>
+                  )}
                 </div>
 
                 <Button

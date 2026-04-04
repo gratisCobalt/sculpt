@@ -52,6 +52,7 @@ const focusAreas = [
   { value: 'upper_arms', label: 'Arme' },
   { value: 'shoulders', label: 'Schultern' },
   { value: 'upper_legs', label: 'Beine' },
+  { value: 'glutes', label: 'Po' },
   { value: 'waist', label: 'Bauch' },
 ]
 
@@ -66,8 +67,9 @@ export default function OnboardingPage() {
   const [isGeneratingPlan, setIsGeneratingPlan] = useState(false)
   const [generationProgress, setGenerationProgress] = useState(0)
   const [generationError, setGenerationError] = useState<string | null>(null)
+  const [showSkipButton, setShowSkipButton] = useState(false)
   const progressIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null)
-  const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const pollingRef = useRef<ReturnType<typeof setInterval> | null>(null)
 
   // Form state
   const [displayName, setDisplayName] = useState('')
@@ -89,7 +91,7 @@ export default function OnboardingPage() {
   useEffect(() => {
     return () => {
       if (progressIntervalRef.current) clearInterval(progressIntervalRef.current)
-      if (timeoutRef.current) clearTimeout(timeoutRef.current)
+      if (pollingRef.current) clearInterval(pollingRef.current)
     }
   }, [])
 
@@ -148,69 +150,75 @@ export default function OnboardingPage() {
         onboarding_completed: true,
       } as Record<string, unknown>)
 
-      // Start AI plan generation
+      // Start AI plan generation (fire-and-forget — server handles it via waitUntil)
       setIsLoading(false)
       setIsGeneratingPlan(true)
       setGenerationProgress(0)
       setGenerationError(null)
+      setShowSkipButton(false)
 
-      // Fake progress animation: 0-60% in ~10s, 60-90% slower over ~40s, 90-95% crawl
-      let progress = 0
-      progressIntervalRef.current = setInterval(() => {
-        if (progress < 60) {
-          progress += 0.6 // 0-60 in ~10s
-        } else if (progress < 90) {
-          progress += 0.075 // 60-90 in ~40s
-        } else if (progress < 95) {
-          progress += 0.025 // 90-95 in ~20s
-        }
-        setGenerationProgress(Math.min(progress, 95))
-      }, 100)
-
-      // Set 90s timeout (AI plan generation can take 30-60s)
-      timeoutRef.current = setTimeout(() => {
-        if (progressIntervalRef.current) clearInterval(progressIntervalRef.current)
-        setGenerationError('Trainingsplan konnte nicht erstellt werden. Bitte versuche es später erneut oder kontaktiere den Support unter info@sculpt-app.de')
-        setIsGeneratingPlan(false)
-      }, 90000)
-
-      // Call API to generate training plan
-      await api.generateTrainingPlan({
+      // Fire the request — don't await it (server returns 202 immediately)
+      api.generateTrainingPlan({
         fitness_goal: goal,
         experience_level: experience,
         training_frequency: parseInt(frequency.replace('+', '')) || 3,
         focus_areas: selectedFocusAreas,
         body_weight_kg: parseFloat(bodyWeight) || undefined,
+      }).catch((err) => {
+        console.error('Generate plan request failed:', err)
       })
 
-      // Clear timeout and interval
-      if (timeoutRef.current) clearTimeout(timeoutRef.current)
-      if (progressIntervalRef.current) clearInterval(progressIntervalRef.current)
+      // Show skip button after 1 second
+      setTimeout(() => setShowSkipButton(true), 1000)
 
-      // Complete progress to 100%
-      setGenerationProgress(100)
+      // Fake progress animation
+      let progress = 0
+      progressIntervalRef.current = setInterval(() => {
+        if (progress < 60) {
+          progress += 0.6
+        } else if (progress < 90) {
+          progress += 0.075
+        } else if (progress < 95) {
+          progress += 0.025
+        }
+        setGenerationProgress(Math.min(progress, 95))
+      }, 100)
 
-      // Show confetti after brief delay
-      setTimeout(() => {
-        setShowConfetti(true)
+      // Poll plan status every 3 seconds
+      pollingRef.current = setInterval(async () => {
+        try {
+          const { status } = await api.getPlanStatus()
 
-        // Refresh profile and navigate after animation
-        refreshProfile().then(() => {
-          setTimeout(() => {
-            navigate('/dashboard')
-          }, 2000)
-        })
-      }, 500)
+          if (status === 'ready') {
+            // Plan is done!
+            if (progressIntervalRef.current) clearInterval(progressIntervalRef.current)
+            if (pollingRef.current) clearInterval(pollingRef.current)
+            setGenerationProgress(100)
+
+            setTimeout(() => {
+              setShowConfetti(true)
+              refreshProfile().then(() => {
+                setTimeout(() => navigate('/dashboard'), 2000)
+              })
+            }, 500)
+          } else if (status === 'failed') {
+            if (progressIntervalRef.current) clearInterval(progressIntervalRef.current)
+            if (pollingRef.current) clearInterval(pollingRef.current)
+            setGenerationError('Trainingsplan konnte nicht erstellt werden. Du kannst ihn später in den Einstellungen erneut generieren.')
+            setIsGeneratingPlan(false)
+          }
+        } catch {
+          // Polling error — ignore, will retry
+        }
+      }, 3000)
     } catch (error) {
       console.error('Error completing onboarding:', error)
 
-      // Clear timers
-      if (timeoutRef.current) clearTimeout(timeoutRef.current)
       if (progressIntervalRef.current) clearInterval(progressIntervalRef.current)
+      if (pollingRef.current) clearInterval(pollingRef.current)
 
-      // If we were generating plan, show error
       if (isGeneratingPlan) {
-        setGenerationError('Trainingsplan konnte nicht erstellt werden. Bitte versuche es später erneut oder kontaktiere den Support unter info@sculpt-app.de')
+        setGenerationError('Trainingsplan konnte nicht erstellt werden. Du kannst ihn später in den Einstellungen erneut generieren.')
         setIsGeneratingPlan(false)
       } else {
         setIsLoading(false)
@@ -239,18 +247,19 @@ export default function OnboardingPage() {
             <div className="w-20 h-20 rounded-full bg-[hsl(var(--destructive))]/10 flex items-center justify-center mx-auto mb-6">
               <AlertCircle className="w-10 h-10 text-[hsl(var(--destructive))]" />
             </div>
-            <h2 className="text-2xl font-bold mb-4">Fehler</h2>
+            <h2 className="text-2xl font-bold mb-4">Kein Problem!</h2>
             <p className="text-[hsl(var(--muted-foreground))] mb-8">
               {generationError}
             </p>
             <Button
               size="lg"
+              className="w-full"
               onClick={() => {
                 setGenerationError(null)
-                navigate('/dashboard')
+                refreshProfile().then(() => navigate('/dashboard'))
               }}
             >
-              Zum Dashboard
+              Weiter zum Dashboard
             </Button>
           </div>
         ) : (
@@ -272,12 +281,33 @@ export default function OnboardingPage() {
                 style={{ width: `${generationProgress}%` }}
               />
             </div>
-            <p className="text-sm text-[hsl(var(--muted-foreground))]">
+            <p className="text-sm text-[hsl(var(--muted-foreground))] mb-6">
               {generationProgress < 30 && 'Analysiere deine Ziele...'}
               {generationProgress >= 30 && generationProgress < 60 && 'Wähle passende Übungen aus...'}
               {generationProgress >= 60 && generationProgress < 90 && 'Optimiere deinen Plan...'}
               {generationProgress >= 90 && 'Fast fertig...'}
             </p>
+
+            {/* Skip button — appears after 1 second */}
+            {showSkipButton && (
+              <div className="animate-fade-in flex flex-col items-center gap-2">
+                <Button
+                  variant="secondary"
+                  size="lg"
+                  className="w-full"
+                  onClick={() => {
+                    if (progressIntervalRef.current) clearInterval(progressIntervalRef.current)
+                    if (pollingRef.current) clearInterval(pollingRef.current)
+                    refreshProfile().then(() => navigate('/dashboard'))
+                  }}
+                >
+                  Überspringen
+                </Button>
+                <p className="text-xs text-[hsl(var(--muted-foreground))]">
+                  Dein Plan wird im Hintergrund erstellt
+                </p>
+              </div>
+            )}
           </div>
         )}
       </div>

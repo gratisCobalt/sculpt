@@ -11,6 +11,8 @@ import {
   Search,
   CheckCircle2,
   AlertCircle,
+  ChevronDown,
+  Check,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
@@ -19,6 +21,7 @@ import { SkeletonList } from '@/components/ui/loader'
 import { cn } from '@/lib/utils'
 import { useAuth } from '@/hooks/useAuth'
 import { api } from '@/lib/api'
+import { ExerciseHistoryModal } from '@/components/ExerciseHistoryModal'
 import { useState, useMemo, useCallback, useEffect } from 'react'
 import {
   DndContext,
@@ -36,11 +39,13 @@ import {
   arrayMove,
 } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
+import sculptIcon from '@/assets/sculpt-icon.png'
 
 interface PlanExerciseInfo {
   id?: number
   name: string
   name_de?: string
+  image_url?: string
 }
 
 interface PlanExercise {
@@ -68,7 +73,6 @@ interface EditingExercise {
 // Sortable exercise card
 function SortableExerciseCard({
   exercise,
-  index,
   editMode,
   editingExercise,
   setEditingExercise,
@@ -77,9 +81,9 @@ function SortableExerciseCard({
   updatePending,
   handleDeleteExercise,
   deletePending,
+  onSelect,
 }: {
   exercise: PlanExercise
-  index: number
   editMode: boolean
   editingExercise: EditingExercise | null
   setEditingExercise: (e: EditingExercise | null) => void
@@ -88,6 +92,7 @@ function SortableExerciseCard({
   updatePending: boolean
   handleDeleteExercise: (id: number, name: string) => void
   deletePending: boolean
+  onSelect: () => void
 }) {
   const {
     attributes,
@@ -177,21 +182,40 @@ function SortableExerciseCard({
                   <GripVertical className="w-5 h-5" />
                 </div>
               )}
-              <div className="flex-1">
-                <div className="flex items-center gap-2">
-                  <span className="w-6 h-6 rounded-full bg-[hsl(var(--surface-strong))] flex items-center justify-center text-xs font-medium">
-                    {index + 1}
-                  </span>
-                  <h3 className="font-semibold">
+              {/* Exercise thumbnail + info — clickable when not editing */}
+              <button
+                type="button"
+                className="flex items-center gap-3 flex-1 min-w-0 text-left"
+                onClick={editMode ? undefined : onSelect}
+                disabled={editMode}
+              >
+                <div className="w-12 h-12 rounded-xl overflow-hidden flex-shrink-0 bg-[hsl(var(--surface-strong))]">
+                  {exercise.exercise?.image_url ? (
+                    <img
+                      src={exercise.exercise.image_url}
+                      alt={exercise.exercise?.name_de || exercise.exercise?.name || 'Übung'}
+                      className="w-full h-full object-cover"
+                    />
+                  ) : (
+                    <div className="w-full h-full flex items-center justify-center text-sm font-bold text-[hsl(var(--muted-foreground))]">
+                      {(exercise.exercise?.name_de || exercise.exercise?.name || '?').charAt(0)}
+                    </div>
+                  )}
+                </div>
+                <div className="flex-1 min-w-0">
+                  <h3 className="font-semibold text-[15px] truncate">
                     {exercise.exercise?.name_de || exercise.exercise?.name || 'Übung'}
                   </h3>
+                  <div className="flex items-center gap-2 mt-1">
+                    <span className="text-xs font-medium px-2 py-0.5 rounded-full bg-[hsl(var(--primary))]/10 text-[hsl(var(--primary))]">
+                      {exercise.sets} Sätze
+                    </span>
+                    <span className="text-xs text-[hsl(var(--muted-foreground))]">
+                      {exercise.min_reps}–{exercise.max_reps} Wdh
+                    </span>
+                  </div>
                 </div>
-                <div className="flex items-center gap-3 ml-8 mt-1 text-sm text-[hsl(var(--muted-foreground))]">
-                  <span>{exercise.sets} Sätze</span>
-                  <span>&middot;</span>
-                  <span>{exercise.min_reps}-{exercise.max_reps} Wdh.</span>
-                </div>
-              </div>
+              </button>
               {editMode && (
                 <div className="flex gap-1">
                   <Button variant="ghost" size="icon" className="h-11 w-11" onClick={() => startEditing(exercise)}>
@@ -225,9 +249,21 @@ export default function TrainingPlanPage() {
   const [selectedDayId, setSelectedDayId] = useState<number | null>(null)
   const [editMode, setEditMode] = useState(false)
   const [editingExercise, setEditingExercise] = useState<EditingExercise | null>(null)
+  const [editingDayId, setEditingDayId] = useState<number | null>(null)
+  const [editingDayName, setEditingDayName] = useState('')
+  const [showAddDay, setShowAddDay] = useState(false)
+  const [newDayName, setNewDayName] = useState('')
   const [showAddExercise, setShowAddExercise] = useState(false)
   const [exerciseSearch, setExerciseSearch] = useState('')
   const [feedback, setFeedback] = useState<{ type: 'success' | 'error'; message: string } | null>(null)
+  const [showPlanSwitcher, setShowPlanSwitcher] = useState(false)
+  const [editingPlanName, setEditingPlanName] = useState(false)
+  const [planNameInput, setPlanNameInput] = useState('')
+  const [selectedExercise, setSelectedExercise] = useState<{
+    id: number
+    name: string
+    imageUrl?: string
+  } | null>(null)
 
   useEffect(() => {
     if (!feedback) return
@@ -239,6 +275,12 @@ export default function TrainingPlanPage() {
     useSensor(PointerSensor, { activationConstraint: { distance: 8 } }),
     useSensor(TouchSensor, { activationConstraint: { delay: 200, tolerance: 5 } })
   )
+
+  const { data: myPlans } = useQuery({
+    queryKey: ['myPlans', user?.id],
+    queryFn: () => api.getMyPlans(),
+    enabled: !!user?.id,
+  })
 
   const { data: userPlan, isLoading: isLoadingUserPlan } = useQuery({
     queryKey: ['userTrainingPlan', user?.id],
@@ -273,7 +315,40 @@ export default function TrainingPlanPage() {
   const invalidateQueries = useCallback(() => {
     queryClient.invalidateQueries({ queryKey: ['trainingPlan', planId] })
     queryClient.invalidateQueries({ queryKey: ['userTrainingPlan'] })
+    queryClient.invalidateQueries({ queryKey: ['myPlans'] })
   }, [queryClient, planId])
+
+  const switchPlan = useMutation({
+    mutationFn: (newPlanId: number) => api.setActivePlan(newPlanId),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['userTrainingPlan'] })
+      queryClient.invalidateQueries({ queryKey: ['myPlans'] })
+      setShowPlanSwitcher(false)
+      setSelectedDayId(null)
+    },
+    onError: () => setFeedback({ type: 'error', message: 'Plan konnte nicht gewechselt werden' }),
+  })
+
+  const renamePlan = useMutation({
+    mutationFn: (name: string) => api.renamePlan(planId, name),
+    onSuccess: () => {
+      invalidateQueries()
+      setEditingPlanName(false)
+      setFeedback({ type: 'success', message: 'Plan umbenannt' })
+    },
+    onError: () => setFeedback({ type: 'error', message: 'Plan konnte nicht umbenannt werden' }),
+  })
+
+  const deletePlan = useMutation({
+    mutationFn: () => api.deletePlan(planId),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['userTrainingPlan'] })
+      queryClient.invalidateQueries({ queryKey: ['myPlans'] })
+      setEditMode(false)
+      setFeedback({ type: 'success', message: 'Plan gelöscht' })
+    },
+    onError: () => setFeedback({ type: 'error', message: 'Plan konnte nicht gelöscht werden' }),
+  })
 
   const updateExercise = useMutation({
     mutationFn: (data: { exerciseId: number; sets: number; min_reps: number; max_reps: number }) =>
@@ -300,6 +375,38 @@ export default function TrainingPlanPage() {
       setFeedback({ type: 'success', message: 'Übung hinzugefügt' })
     },
     onError: () => setFeedback({ type: 'error', message: 'Übung konnte nicht hinzugefügt werden' }),
+  })
+
+  const updateDay = useMutation({
+    mutationFn: (data: { dayId: number; name: string }) =>
+      api.updatePlanDay(planId, data.dayId, { name: data.name, name_de: data.name }),
+    onSuccess: () => {
+      invalidateQueries()
+      setEditingDayId(null)
+      setFeedback({ type: 'success', message: 'Tag umbenannt' })
+    },
+    onError: () => setFeedback({ type: 'error', message: 'Tag konnte nicht umbenannt werden' }),
+  })
+
+  const addDay = useMutation({
+    mutationFn: (name: string) => api.addPlanDay(planId, { name, name_de: name }),
+    onSuccess: () => {
+      invalidateQueries()
+      setShowAddDay(false)
+      setNewDayName('')
+      setFeedback({ type: 'success', message: 'Tag hinzugefügt' })
+    },
+    onError: () => setFeedback({ type: 'error', message: 'Tag konnte nicht hinzugefügt werden' }),
+  })
+
+  const deleteDay = useMutation({
+    mutationFn: (dayId: number) => api.deletePlanDay(planId, dayId),
+    onSuccess: () => {
+      invalidateQueries()
+      setSelectedDayId(null)
+      setFeedback({ type: 'success', message: 'Tag gelöscht' })
+    },
+    onError: () => setFeedback({ type: 'error', message: 'Tag konnte nicht gelöscht werden' }),
   })
 
   const reorderExercises = useMutation({
@@ -379,7 +486,7 @@ export default function TrainingPlanPage() {
         <div className="text-center">
           <div className="w-20 h-20 rounded-2xl glass flex items-center justify-center mx-auto mb-4">
             <img
-              src={new URL('@/assets/Sculpt.icon/Assets/image (1).png', import.meta.url).href}
+              src={sculptIcon}
               alt="Sculpt"
               className="w-12 h-12 object-contain opacity-60"
             />
@@ -397,19 +504,101 @@ export default function TrainingPlanPage() {
   return (
     <div className="min-h-screen pb-24 safe-top">
       {/* Header */}
-      <div className="px-6 pt-6 pb-4 flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-bold mb-2">Trainingsplan</h1>
-          <p className="text-sm text-[hsl(var(--muted-foreground))]">{plan.name}</p>
+      <div className="px-6 pt-6 pb-4">
+        <div className="flex items-center justify-between mb-2">
+          <h1 className="text-2xl font-bold">Trainingsplan</h1>
+          <Button
+            variant={editMode ? 'default' : 'outline'}
+            size="sm"
+            onClick={() => { setEditMode(!editMode); setEditingExercise(null); setShowAddExercise(false); setEditingDayId(null); setShowAddDay(false); setEditingPlanName(false) }}
+          >
+            <Pencil className="w-4 h-4 mr-1" />
+            {editMode ? 'Fertig' : 'Bearbeiten'}
+          </Button>
         </div>
-        <Button
-          variant={editMode ? 'default' : 'outline'}
-          size="sm"
-          onClick={() => { setEditMode(!editMode); setEditingExercise(null); setShowAddExercise(false) }}
-        >
-          <Pencil className="w-4 h-4 mr-1" />
-          {editMode ? 'Fertig' : 'Bearbeiten'}
-        </Button>
+
+        {/* Plan name — editable in edit mode */}
+        {editMode && editingPlanName ? (
+          <div className="flex items-center gap-2">
+            <Input
+              value={planNameInput}
+              onChange={(e) => setPlanNameInput(e.target.value)}
+              className="h-9 text-sm flex-1"
+              autoFocus
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' && planNameInput.trim()) renamePlan.mutate(planNameInput.trim())
+                if (e.key === 'Escape') setEditingPlanName(false)
+              }}
+            />
+            <Button variant="ghost" size="icon" className="h-9 w-9" onClick={() => { if (planNameInput.trim()) renamePlan.mutate(planNameInput.trim()) }} disabled={renamePlan.isPending}>
+              <Save className="w-4 h-4" />
+            </Button>
+            <Button variant="ghost" size="icon" className="h-9 w-9" onClick={() => setEditingPlanName(false)}>
+              <X className="w-4 h-4" />
+            </Button>
+          </div>
+        ) : (
+          <div className="flex items-center gap-2">
+            {/* Plan switcher */}
+            <div className="relative">
+              <button
+                onClick={() => setShowPlanSwitcher(!showPlanSwitcher)}
+                className="flex items-center gap-1.5 text-sm text-[hsl(var(--muted-foreground))] hover:text-[hsl(var(--foreground))] transition-colors"
+              >
+                <span>{plan.name_de || plan.name}</span>
+                <ChevronDown className={cn('w-4 h-4 transition-transform', showPlanSwitcher && 'rotate-180')} />
+              </button>
+
+              {showPlanSwitcher && myPlans && myPlans.length > 0 && (
+                <div className="absolute left-0 top-full mt-2 w-72 rounded-xl p-2 z-50 animate-scale-in" style={{ background: 'rgba(10, 10, 12, 0.95)', border: '1px solid rgba(255,255,255,0.12)', backdropFilter: 'blur(20px)', WebkitBackdropFilter: 'blur(20px)' }}>
+                  {myPlans.map((p) => (
+                    <button
+                      key={p.id}
+                      onClick={() => {
+                        if (p.id !== planId) switchPlan.mutate(p.id)
+                        else setShowPlanSwitcher(false)
+                      }}
+                      className={cn(
+                        'w-full text-left px-3 py-2.5 rounded-lg flex items-center justify-between transition-colors text-sm',
+                        p.id === planId ? 'bg-white/10' : 'hover:bg-white/5'
+                      )}
+                    >
+                      <div>
+                        <p className="font-medium">{p.name_de || p.name}</p>
+                        <p className="text-xs text-[hsl(var(--muted-foreground))]">
+                          {p.total_days} Tage · {p.total_exercises} Übungen
+                        </p>
+                      </div>
+                      {p.is_active === 1 && <Check className="w-4 h-4 text-[hsl(var(--primary))]" />}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            {/* Edit mode: rename + delete plan */}
+            {editMode && (
+              <div className="flex gap-1 ml-auto">
+                <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => { setEditingPlanName(true); setPlanNameInput(plan.name_de || plan.name || '') }}>
+                  <Pencil className="w-3.5 h-3.5" />
+                </Button>
+                {myPlans && myPlans.length > 1 && (
+                  <Button
+                    variant="ghost" size="icon" className="h-8 w-8 text-[hsl(var(--destructive))]"
+                    onClick={() => {
+                      if (window.confirm(`Plan "${plan.name_de || plan.name}" wirklich löschen?`)) {
+                        deletePlan.mutate()
+                      }
+                    }}
+                    disabled={deletePlan.isPending}
+                  >
+                    <Trash2 className="w-3.5 h-3.5" />
+                  </Button>
+                )}
+              </div>
+            )}
+          </div>
+        )}
       </div>
 
       {/* Feedback Banner */}
@@ -429,19 +618,114 @@ export default function TrainingPlanPage() {
       {days.length > 0 && (
         <div className="px-6 mb-4">
           <div className="flex gap-2 overflow-x-auto no-scrollbar pb-2">
-            {days.map((day) => (
-              <button
-                key={day.id}
-                onClick={() => { setSelectedDayId(day.id); setEditingExercise(null); setShowAddExercise(false) }}
-                className={cn(
-                  'px-4 py-3 rounded-xl whitespace-nowrap transition-all duration-200 flex flex-col items-start',
-                  effectiveSelectedDayId === day.id ? 'gradient-primary text-gray-900' : 'glass glass-hover'
-                )}
-              >
-                <span className="text-xs opacity-80">Tag {day.day_number}</span>
-                <span className="font-semibold">{day.name}</span>
-              </button>
-            ))}
+            {days.map((day) => {
+              const isActive = effectiveSelectedDayId === day.id
+              const isEditingThis = editingDayId === day.id
+
+              if (editMode && isEditingThis) {
+                return (
+                  <div key={day.id} className="flex items-center gap-1 glass rounded-xl px-3 py-2 min-w-[140px]">
+                    <Input
+                      value={editingDayName}
+                      onChange={(e) => setEditingDayName(e.target.value)}
+                      className="h-8 text-sm"
+                      autoFocus
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter' && editingDayName.trim()) {
+                          updateDay.mutate({ dayId: day.id, name: editingDayName.trim() })
+                        }
+                        if (e.key === 'Escape') setEditingDayId(null)
+                      }}
+                    />
+                    <Button
+                      variant="ghost" size="icon" className="h-7 w-7 shrink-0"
+                      onClick={() => {
+                        if (editingDayName.trim()) updateDay.mutate({ dayId: day.id, name: editingDayName.trim() })
+                      }}
+                      disabled={updateDay.isPending}
+                    >
+                      <Save className="w-3.5 h-3.5" />
+                    </Button>
+                    <Button variant="ghost" size="icon" className="h-7 w-7 shrink-0" onClick={() => setEditingDayId(null)}>
+                      <X className="w-3.5 h-3.5" />
+                    </Button>
+                  </div>
+                )
+              }
+
+              return (
+                <div key={day.id} className="relative group flex items-center">
+                  <button
+                    onClick={() => { setSelectedDayId(day.id); setEditingExercise(null); setShowAddExercise(false) }}
+                    className={cn(
+                      'px-4 py-3 rounded-xl whitespace-nowrap transition-all duration-200 flex flex-col items-start',
+                      isActive ? 'gradient-primary text-gray-900' : 'glass glass-hover'
+                    )}
+                  >
+                    <span className="text-xs opacity-80">Tag {day.day_number}</span>
+                    <span className="font-semibold">{day.name}</span>
+                  </button>
+                  {editMode && isActive && (
+                    <div className="flex gap-0.5 ml-1">
+                      <Button
+                        variant="ghost" size="icon" className="h-8 w-8"
+                        onClick={() => { setEditingDayId(day.id); setEditingDayName(day.name) }}
+                      >
+                        <Pencil className="w-3.5 h-3.5" />
+                      </Button>
+                      <Button
+                        variant="ghost" size="icon" className="h-8 w-8 text-[hsl(var(--destructive))]"
+                        onClick={() => {
+                          if (window.confirm(`Tag "${day.name}" wirklich löschen? Alle Übungen werden entfernt.`)) {
+                            deleteDay.mutate(day.id)
+                          }
+                        }}
+                        disabled={deleteDay.isPending || days.length <= 1}
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </Button>
+                    </div>
+                  )}
+                </div>
+              )
+            })}
+
+            {/* Add Day button in edit mode */}
+            {editMode && (
+              showAddDay ? (
+                <div className="flex items-center gap-1 glass rounded-xl px-3 py-2 min-w-[140px]">
+                  <Input
+                    placeholder="Tag Name..."
+                    value={newDayName}
+                    onChange={(e) => setNewDayName(e.target.value)}
+                    className="h-8 text-sm"
+                    autoFocus
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter' && newDayName.trim()) addDay.mutate(newDayName.trim())
+                      if (e.key === 'Escape') { setShowAddDay(false); setNewDayName('') }
+                    }}
+                  />
+                  <Button
+                    variant="ghost" size="icon" className="h-7 w-7 shrink-0"
+                    onClick={() => { if (newDayName.trim()) addDay.mutate(newDayName.trim()) }}
+                    disabled={addDay.isPending}
+                  >
+                    <Save className="w-3.5 h-3.5" />
+                  </Button>
+                  <Button variant="ghost" size="icon" className="h-7 w-7 shrink-0" onClick={() => { setShowAddDay(false); setNewDayName('') }}>
+                    <X className="w-3.5 h-3.5" />
+                  </Button>
+                </div>
+              ) : (
+                <button
+                  onClick={() => setShowAddDay(true)}
+                  className="px-4 py-3 rounded-xl whitespace-nowrap glass glass-hover flex items-center gap-1.5 text-[hsl(var(--muted-foreground))]"
+                >
+                  <Plus className="w-4 h-4" />
+                  <span className="font-semibold text-sm">Tag</span>
+                </button>
+              )
+            )}
           </div>
         </div>
       )}
@@ -469,11 +753,10 @@ export default function TrainingPlanPage() {
           <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
             <SortableContext items={exercises.map((e) => e.id)} strategy={verticalListSortingStrategy}>
               <div className="space-y-3">
-                {exercises.map((exercise, index) => (
+                {exercises.map((exercise) => (
                   <SortableExerciseCard
                     key={exercise.id}
                     exercise={exercise}
-                    index={index}
                     editMode={editMode}
                     editingExercise={editingExercise}
                     setEditingExercise={setEditingExercise}
@@ -482,6 +765,11 @@ export default function TrainingPlanPage() {
                     updatePending={updateExercise.isPending}
                     handleDeleteExercise={handleDeleteExercise}
                     deletePending={deleteExercise.isPending}
+                    onSelect={() => setSelectedExercise({
+                      id: exercise.exercise?.id || exercise.id,
+                      name: exercise.exercise?.name_de || exercise.exercise?.name || 'Übung',
+                      imageUrl: exercise.exercise?.image_url,
+                    })}
                   />
                 ))}
               </div>
@@ -539,6 +827,18 @@ export default function TrainingPlanPage() {
           </div>
         )}
       </div>
+
+      {/* Exercise History Modal */}
+      {selectedExercise && (
+        <ExerciseHistoryModal
+          isOpen={!!selectedExercise}
+          onClose={() => setSelectedExercise(null)}
+          exerciseId={selectedExercise.id}
+          exerciseName={selectedExercise.name}
+          imageUrl={selectedExercise.imageUrl}
+          history={[]}
+        />
+      )}
     </div>
   )
 }
