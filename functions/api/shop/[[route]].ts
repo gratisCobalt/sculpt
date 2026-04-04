@@ -104,6 +104,48 @@ async function handlePurchase(ctx: RequestContext): Promise<Response> {
   }
 }
 
+// POST /api/shop/activate-streak-saver - Activate a streak saver from inventory
+async function handleActivateStreakSaver(ctx: RequestContext): Promise<Response> {
+  const { request, env } = ctx
+
+  const userId = await getUserIdFromRequest(request, env)
+  if (!userId) return errorResponse('Unauthorized', 401)
+
+  try {
+    // Check if user has a streak saver in inventory
+    const inventory = await env.database.prepare(`
+      SELECT ui.id, ui.quantity, si.code
+      FROM user_inventory ui
+      JOIN shop_item si ON ui.shop_item_id = si.id
+      WHERE ui.user_id = ? AND si.code = 'streak_saver' AND ui.quantity > 0
+    `).bind(userId).first<Record<string, unknown>>()
+
+    if (!inventory) {
+      return errorResponse('No streak saver in inventory', 400)
+    }
+
+    const now = nowISO()
+    // Expires in 7 days
+    const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString()
+
+    // Create active streak saver
+    await env.database.prepare(`
+      INSERT INTO streak_saver (user_id, activated_at, expires_at)
+      VALUES (?, ?, ?)
+    `).bind(userId, now, expiresAt).run()
+
+    // Decrement inventory
+    await env.database.prepare(
+      'UPDATE user_inventory SET quantity = quantity - 1 WHERE id = ?'
+    ).bind(inventory.id).run()
+
+    return jsonResponse({ success: true, expires_at: expiresAt })
+  } catch (error) {
+    console.error('Activate streak saver error:', error)
+    return errorResponse('Failed to activate streak saver', 500)
+  }
+}
+
 // Main request handler
 export const onRequest: PagesFunction<Env> = async (context) => {
   const { request, env } = context
@@ -122,6 +164,9 @@ export const onRequest: PagesFunction<Env> = async (context) => {
   }
   if (request.method === 'POST' && path === '/api/shop/purchase') {
     return handlePurchase(ctx)
+  }
+  if (request.method === 'POST' && path === '/api/shop/activate-streak-saver') {
+    return handleActivateStreakSaver(ctx)
   }
   return errorResponse('Not found', 404)
 }

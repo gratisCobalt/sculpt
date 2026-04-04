@@ -118,7 +118,7 @@ async function handleSendRequest(ctx: RequestContext): Promise<Response> {
   }
 }
 
-// POST /api/buddies/accept/:id - Accept friend request  
+// POST /api/buddies/accept/:id - Accept friend request
 async function handleAcceptRequest(ctx: RequestContext): Promise<Response> {
   const { request, env, url } = ctx
 
@@ -127,7 +127,7 @@ async function handleAcceptRequest(ctx: RequestContext): Promise<Response> {
 
   const match = url.pathname.match(/\/api\/buddies\/accept\/(\d+)$/)
   if (!match) return errorResponse('Invalid path', 400)
-  
+
   const friendshipId = parseInt(match[1])
 
   try {
@@ -161,7 +161,7 @@ async function handleDeclineRequest(ctx: RequestContext): Promise<Response> {
 
   const match = url.pathname.match(/\/api\/buddies\/decline\/(\d+)$/)
   if (!match) return errorResponse('Invalid path', 400)
-  
+
   const friendshipId = parseInt(match[1])
 
   try {
@@ -173,6 +173,217 @@ async function handleDeclineRequest(ctx: RequestContext): Promise<Response> {
   } catch (error) {
     console.error('Decline friend request error:', error)
     return errorResponse('Failed to decline friend request', 500)
+  }
+}
+
+// PATCH /api/buddies/:id - Respond to friend request (accept/reject)
+async function handleRespondToRequest(ctx: RequestContext): Promise<Response> {
+  const { request, env, url } = ctx
+
+  const userId = await getUserIdFromRequest(request, env)
+  if (!userId) return errorResponse('Unauthorized', 401)
+
+  const match = url.pathname.match(/^\/api\/buddies\/(\d+)$/)
+  if (!match) return errorResponse('Invalid path', 400)
+
+  const friendshipId = parseInt(match[1])
+
+  try {
+    const body = await request.json() as { action: string }
+    const { action } = body
+
+    if (action === 'accept') {
+      const friendship = await env.database.prepare(
+        'SELECT * FROM friendship WHERE id = ? AND addressee_id = ? AND status_id = 1'
+      ).bind(friendshipId, userId).first()
+
+      if (!friendship) return errorResponse('Friend request not found', 404)
+
+      const now = nowISO()
+      await env.database.prepare(
+        'UPDATE friendship SET status_id = 2, updated_at = ? WHERE id = ?'
+      ).bind(now, friendshipId).run()
+
+      return jsonResponse({ success: true, status: 'accepted' })
+    } else if (action === 'reject') {
+      await env.database.prepare(
+        'DELETE FROM friendship WHERE id = ? AND addressee_id = ? AND status_id = 1'
+      ).bind(friendshipId, userId).run()
+
+      return jsonResponse({ success: true, status: 'rejected' })
+    }
+
+    return errorResponse('Invalid action — use "accept" or "reject"', 400)
+  } catch (error) {
+    console.error('Respond to friend request error:', error)
+    return errorResponse('Failed to respond to friend request', 500)
+  }
+}
+
+// DELETE /api/buddies/:id - Remove buddy
+async function handleRemoveBuddy(ctx: RequestContext): Promise<Response> {
+  const { request, env, url } = ctx
+
+  const userId = await getUserIdFromRequest(request, env)
+  if (!userId) return errorResponse('Unauthorized', 401)
+
+  const match = url.pathname.match(/^\/api\/buddies\/(\d+)$/)
+  if (!match) return errorResponse('Invalid path', 400)
+
+  const friendshipId = parseInt(match[1])
+
+  try {
+    await env.database.prepare(
+      'DELETE FROM friendship WHERE id = ? AND (requester_id = ? OR addressee_id = ?)'
+    ).bind(friendshipId, userId, userId).run()
+
+    return jsonResponse({ success: true })
+  } catch (error) {
+    console.error('Remove buddy error:', error)
+    return errorResponse('Failed to remove buddy', 500)
+  }
+}
+
+// POST /api/buddies/:id/remind - Send training reminder
+async function handleSendReminder(ctx: RequestContext): Promise<Response> {
+  const { request, env, url } = ctx
+
+  const userId = await getUserIdFromRequest(request, env)
+  if (!userId) return errorResponse('Unauthorized', 401)
+
+  const match = url.pathname.match(/^\/api\/buddies\/(\d+)\/remind$/)
+  if (!match) return errorResponse('Invalid path', 400)
+
+  const friendshipId = parseInt(match[1])
+
+  try {
+    // Verify friendship exists and user is part of it
+    const friendship = await env.database.prepare(
+      'SELECT * FROM friendship WHERE id = ? AND (requester_id = ? OR addressee_id = ?) AND status_id = 2'
+    ).bind(friendshipId, userId, userId).first<Record<string, unknown>>()
+
+    if (!friendship) return errorResponse('Friendship not found', 404)
+
+    // Determine buddy's user ID
+    const buddyId = friendship.requester_id === userId ? friendship.addressee_id : friendship.requester_id
+
+    // Create a notification for the buddy
+    const now = nowISO()
+    try {
+      await env.database.prepare(`
+        INSERT INTO notification (user_id, type, title_de, body_de, metadata, created_at)
+        VALUES (?, 'buddy_reminder', 'Trainings-Erinnerung', 'Dein Buddy wartet auf dich!', ?, ?)
+      `).bind(buddyId, JSON.stringify({ from_user_id: userId, friendship_id: friendshipId }), now).run()
+    } catch {
+      // notification table might have different schema — non-fatal
+    }
+
+    return jsonResponse({ success: true })
+  } catch (error) {
+    console.error('Send reminder error:', error)
+    return errorResponse('Failed to send reminder', 500)
+  }
+}
+
+// POST /api/buddies/:id/messages - Send encrypted message
+async function handleSendMessage(ctx: RequestContext): Promise<Response> {
+  const { request, env, url } = ctx
+
+  const userId = await getUserIdFromRequest(request, env)
+  if (!userId) return errorResponse('Unauthorized', 401)
+
+  const match = url.pathname.match(/^\/api\/buddies\/(\d+)\/messages$/)
+  if (!match) return errorResponse('Invalid path', 400)
+
+  const friendshipId = parseInt(match[1])
+
+  try {
+    // Verify friendship
+    const friendship = await env.database.prepare(
+      'SELECT * FROM friendship WHERE id = ? AND (requester_id = ? OR addressee_id = ?) AND status_id = 2'
+    ).bind(friendshipId, userId, userId).first()
+
+    if (!friendship) return errorResponse('Friendship not found', 404)
+
+    const body = await request.json() as {
+      encryptedContent: string
+      ephemeralPublicKey: string
+      mac: string
+      nonce: string
+      messageType?: string
+      referenceType?: string
+      referenceId?: number
+    }
+
+    const now = nowISO()
+    const result = await env.database.prepare(`
+      INSERT INTO buddy_message (friendship_id, sender_id, encrypted_content, ephemeral_public_key, mac, nonce, message_type, reference_type, reference_id, created_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      RETURNING *
+    `).bind(
+      friendshipId,
+      userId,
+      body.encryptedContent,
+      body.ephemeralPublicKey,
+      body.mac,
+      body.nonce,
+      body.messageType || 'text',
+      body.referenceType || null,
+      body.referenceId || null,
+      now
+    ).first()
+
+    return jsonResponse(result || { success: true })
+  } catch (error) {
+    console.error('Send message error:', error)
+    return errorResponse('Failed to send message', 500)
+  }
+}
+
+// GET /api/buddies/:id/keys - Get buddy's encryption keys
+async function handleGetBuddyKeys(ctx: RequestContext): Promise<Response> {
+  const { request, env, url } = ctx
+
+  const userId = await getUserIdFromRequest(request, env)
+  if (!userId) return errorResponse('Unauthorized', 401)
+
+  const match = url.pathname.match(/^\/api\/buddies\/(\d+)\/keys$/)
+  if (!match) return errorResponse('Invalid path', 400)
+
+  const friendshipId = parseInt(match[1])
+
+  try {
+    // Get friendship and determine buddy ID
+    const friendship = await env.database.prepare(
+      'SELECT * FROM friendship WHERE id = ? AND (requester_id = ? OR addressee_id = ?) AND status_id = 2'
+    ).bind(friendshipId, userId, userId).first<Record<string, unknown>>()
+
+    if (!friendship) return errorResponse('Friendship not found', 404)
+
+    const buddyId = friendship.requester_id === userId ? friendship.addressee_id : friendship.requester_id
+
+    // Get buddy's encryption keys
+    const keys = await env.database.prepare(
+      'SELECT identity_public_key, signed_prekey_public, signed_prekey_signature FROM user_encryption_key WHERE user_id = ?'
+    ).bind(buddyId).first()
+
+    if (!keys) return jsonResponse({ keys: null })
+
+    // Get one unused prekey
+    const prekey = await env.database.prepare(
+      'SELECT prekey_id, public_key FROM user_prekey WHERE user_id = ? AND is_used = 0 LIMIT 1'
+    ).bind(buddyId).first()
+
+    if (prekey) {
+      await env.database.prepare(
+        'UPDATE user_prekey SET is_used = 1 WHERE user_id = ? AND prekey_id = ?'
+      ).bind(buddyId, (prekey as Record<string, unknown>).prekey_id).run()
+    }
+
+    return jsonResponse({ ...keys, prekey: prekey || null })
+  } catch (error) {
+    console.error('Get buddy keys error:', error)
+    return errorResponse('Failed to get buddy keys', 500)
   }
 }
 
@@ -203,6 +414,31 @@ export const onRequest: PagesFunction<Env> = async (context) => {
   }
   if (request.method === 'POST' && path.match(/^\/api\/buddies\/decline\/\d+$/)) {
     return handleDeclineRequest(ctx)
+  }
+
+  // PATCH /api/buddies/:id - respond to friend request
+  if (request.method === 'PATCH' && path.match(/^\/api\/buddies\/\d+$/)) {
+    return handleRespondToRequest(ctx)
+  }
+
+  // DELETE /api/buddies/:id - remove buddy
+  if (request.method === 'DELETE' && path.match(/^\/api\/buddies\/\d+$/)) {
+    return handleRemoveBuddy(ctx)
+  }
+
+  // POST /api/buddies/:id/remind
+  if (request.method === 'POST' && path.match(/^\/api\/buddies\/\d+\/remind$/)) {
+    return handleSendReminder(ctx)
+  }
+
+  // POST /api/buddies/:id/messages
+  if (request.method === 'POST' && path.match(/^\/api\/buddies\/\d+\/messages$/)) {
+    return handleSendMessage(ctx)
+  }
+
+  // GET /api/buddies/:id/keys
+  if (request.method === 'GET' && path.match(/^\/api\/buddies\/\d+\/keys$/)) {
+    return handleGetBuddyKeys(ctx)
   }
 
   return errorResponse('Not found', 404)

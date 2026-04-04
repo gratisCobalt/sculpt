@@ -25,6 +25,7 @@ import { api } from '@/lib/api'
 import { cn } from '@/lib/utils'
 import { usePushNotifications } from '@/hooks/usePushNotifications'
 import { useGoogleAuth } from '@/hooks/useGoogleAuth'
+import { FeedbackModal } from '@/components/FeedbackModal'
 
 const BUILD_NUMBER = '1.0.0'
 const GOOGLE_CLIENT_ID = import.meta.env.VITE_GOOGLE_CLIENT_ID || ''
@@ -66,6 +67,7 @@ export default function ProfilePage() {
   const [googleLinking, setGoogleLinking] = useState(false)
   const [googleUnlinking, setGoogleUnlinking] = useState(false)
   const [googleError, setGoogleError] = useState<string | null>(null)
+  const [showFeedback, setShowFeedback] = useState(false)
   const {
     isSupported: pushSupported,
     isSubscribed: pushSubscribed,
@@ -158,9 +160,7 @@ export default function ProfilePage() {
       icon: MessageSquare,
       label: 'Feedback geben',
       description: 'Hilf uns, Sculpt zu verbessern',
-      onClick: () => {
-        // TODO: Open feedback modal
-      },
+      onClick: () => setShowFeedback(true),
     },
   ]
 
@@ -487,6 +487,8 @@ export default function ProfilePage() {
         <Info className="w-3 h-3" />
         <span>Sculpt v{BUILD_NUMBER}</span>
       </div>
+
+      <FeedbackModal isOpen={showFeedback} onClose={() => setShowFeedback(false)} />
     </div>
   )
 }

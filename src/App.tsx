@@ -17,6 +17,9 @@ import BuddyPage from '@/pages/BuddyPage'
 import BuddyChatPage from '@/pages/BuddyChatPage'
 import ShopPage from '@/pages/ShopPage'
 import LootBoxPage from '@/pages/LootBoxPage'
+import ImpressumPage from '@/pages/ImpressumPage'
+import DatenschutzPage from '@/pages/DatenschutzPage'
+import AgbPage from '@/pages/AgbPage'
 
 // Components
 import { BottomNav } from '@/components/BottomNav'
@@ -34,7 +37,11 @@ const queryClient = new QueryClient({
   },
 })
 
-function ProtectedRoute({ children }: { children: React.ReactNode }) {
+function MobileContainer({ children }: { children: React.ReactNode }) {
+  return <div className="mobile-container">{children}</div>
+}
+
+function ProtectedRoute({ children, fullWidth }: { children: React.ReactNode; fullWidth?: boolean }) {
   const { user, loading } = useAuth()
 
   if (loading) {
@@ -54,7 +61,8 @@ function ProtectedRoute({ children }: { children: React.ReactNode }) {
     return <Navigate to="/onboarding" replace />
   }
 
-  return <>{children}</>
+  if (fullWidth) return <>{children}</>
+  return <MobileContainer>{children}</MobileContainer>
 }
 
 function AppRoutes() {
@@ -80,8 +88,12 @@ function AppRoutes() {
         />
         <Route
           path="/login"
-          element={user ? <Navigate to="/dashboard" replace /> : <LoginPage />}
+          element={user ? <Navigate to="/dashboard" replace /> : <MobileContainer><LoginPage /></MobileContainer>}
         />
+
+        <Route path="/impressum" element={<ImpressumPage />} />
+        <Route path="/datenschutz" element={<DatenschutzPage />} />
+        <Route path="/agb" element={<AgbPage />} />
 
         {/* Onboarding route - always accessible for logged-in users */}
         <Route
@@ -90,7 +102,7 @@ function AppRoutes() {
             !user ? (
               <Navigate to="/login" replace />
             ) : (
-              <OnboardingPage />
+              <MobileContainer><OnboardingPage /></MobileContainer>
             )
           }
         />
@@ -117,7 +129,7 @@ function AppRoutes() {
         <Route
           path="/guided-training"
           element={
-            <ProtectedRoute>
+            <ProtectedRoute fullWidth>
               <GuidedTrainingPage />
             </ProtectedRoute>
           }
@@ -198,9 +210,7 @@ export default function App() {
       <QueryClientProvider client={queryClient}>
         <AuthProvider>
           <BrowserRouter>
-            <div className="mobile-container">
-              <AppRoutes />
-            </div>
+            <AppRoutes />
           </BrowserRouter>
         </AuthProvider>
       </QueryClientProvider>

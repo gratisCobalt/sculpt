@@ -377,6 +377,13 @@ export default function TrainingPlanPage() {
     return (
       <div className="min-h-screen pb-24 px-6 pt-6 safe-top flex flex-col items-center justify-center">
         <div className="text-center">
+          <div className="w-20 h-20 rounded-2xl glass flex items-center justify-center mx-auto mb-4">
+            <img
+              src={new URL('@/assets/Sculpt.icon/Assets/image (1).png', import.meta.url).href}
+              alt="Sculpt"
+              className="w-12 h-12 object-contain opacity-60"
+            />
+          </div>
           <h2 className="text-xl font-bold mb-2">Kein Trainingsplan</h2>
           <p className="text-[hsl(var(--muted-foreground))] mb-6">
             Schliesse das Onboarding ab, um einen personalisierten Plan zu erhalten
@@ -481,11 +488,9 @@ export default function TrainingPlanPage() {
             </SortableContext>
           </DndContext>
         ) : (
-          <Card>
-            <CardContent className="p-6 text-center">
-              <p className="text-[hsl(var(--muted-foreground))]">Keine Übungen für diesen Tag</p>
-            </CardContent>
-          </Card>
+          <div className="glass rounded-2xl p-6 text-center">
+            <p className="text-[hsl(var(--muted-foreground))]">Keine Übungen für diesen Tag</p>
+          </div>
         )}
 
         {/* Add Exercise (edit mode) */}
@@ -497,8 +502,7 @@ export default function TrainingPlanPage() {
                 Übung hinzufügen
               </Button>
             ) : (
-              <Card>
-                <CardContent className="p-4">
+              <div className="glass rounded-2xl p-4">
                   <div className="flex items-center justify-between mb-3">
                     <h3 className="font-semibold">Übung hinzufügen</h3>
                     <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => { setShowAddExercise(false); setExerciseSearch('') }}>
@@ -517,7 +521,7 @@ export default function TrainingPlanPage() {
                             key={ex.id}
                             onClick={() => addExercise.mutate({ exercise_id: ex.id, sets: 3, min_reps: 8, max_reps: 12 })}
                             disabled={addExercise.isPending}
-                            className="w-full text-left px-3 py-2 rounded-lg hover:bg-[hsl(var(--surface-soft))] transition-colors text-sm"
+                            className="w-full text-left px-3 py-2 rounded-lg hover:bg-white/5 transition-colors text-sm"
                           >
                             {ex.name_de || ex.name}
                           </button>
@@ -530,8 +534,7 @@ export default function TrainingPlanPage() {
                   {exerciseSearch.length < 2 && (
                     <p className="text-sm text-[hsl(var(--muted-foreground))] text-center py-2">Mindestens 2 Zeichen eingeben</p>
                   )}
-                </CardContent>
-              </Card>
+              </div>
             )}
           </div>
         )}

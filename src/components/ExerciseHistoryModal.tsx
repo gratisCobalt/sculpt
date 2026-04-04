@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { X, Trash2, Edit3, Save, Calendar, Weight, Repeat, ChevronDown, ChevronUp } from 'lucide-react'
+import { X, Trash2, Edit3, Save, Calendar, Weight, Repeat, ChevronDown, ChevronUp, Plus } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
@@ -24,6 +24,7 @@ interface ExerciseHistoryModalProps {
   exerciseName: string
   imageUrl?: string
   history: ExerciseSet[]
+  onAddWorkout?: () => void
 }
 
 export function ExerciseHistoryModal({
@@ -33,6 +34,7 @@ export function ExerciseHistoryModal({
   exerciseName,
   imageUrl,
   history,
+  onAddWorkout,
 }: ExerciseHistoryModalProps) {
   const queryClient = useQueryClient()
   const [editingId, setEditingId] = useState<number | null>(null)
@@ -132,6 +134,13 @@ export function ExerciseHistoryModal({
 
         {/* Content */}
         <div className="overflow-y-auto p-4 pb-8 max-h-[calc(85vh-80px)]">
+          {onAddWorkout && (
+            <Button className="w-full mb-4" onClick={onAddWorkout}>
+              <Plus className="w-4 h-4 mr-2" />
+              Workout tracken
+            </Button>
+          )}
+
           {Object.entries(groupedHistory).length === 0 ? (
             <div className="text-center py-8">
               <p className="text-[hsl(var(--muted-foreground))]">
@@ -206,7 +215,7 @@ export function ExerciseHistoryModal({
                                 <div className="flex items-center gap-2">
                                   <span className="font-semibold">{set.weight} kg</span>
                                   <span className="text-[hsl(var(--muted-foreground))]">×</span>
-                                  <span className="font-semibold">{set.reps}</span>
+                                  <span className="font-semibold">{set.reps} Wdh</span>
                                   {set.isPR && (
                                     <span className="px-1.5 py-0.5 rounded text-[10px] font-medium bg-[hsl(var(--primary))]/20 text-[hsl(var(--primary))]">
                                       PR

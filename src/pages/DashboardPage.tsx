@@ -15,6 +15,7 @@ import { Card, CardContent } from '@/components/ui/card'
 import { SkeletonList } from '@/components/ui/loader'
 import { MachineProgressCard } from '@/components/MachineProgressCard'
 import { ExerciseHistoryModal } from '@/components/ExerciseHistoryModal'
+import { ExerciseInputModal } from '@/components/ExerciseInputModal'
 import { WorkoutAnalysisChart } from '@/components/WorkoutAnalysisChart'
 import { cn } from '@/lib/utils'
 import { useAuth } from '@/hooks/useAuth'
@@ -38,6 +39,13 @@ export default function DashboardPage() {
     id: number
     name: string
     imageUrl?: string
+  } | null>(null)
+  const [addWorkoutExercise, setAddWorkoutExercise] = useState<{
+    id: number
+    name: string
+    name_de?: string | null
+    image_url?: string | null
+    body_part?: string | null
   } | null>(null)
 
   // Fetch weekly stats for header
@@ -301,6 +309,28 @@ export default function DashboardPage() {
           history={
             exerciseProgress?.find((e) => e.exercise.id === selectedExercise.id)?.allSets || []
           }
+          onAddWorkout={() => {
+            const item = exerciseProgress?.find((e) => e.exercise.id === selectedExercise.id)
+            if (item) {
+              setAddWorkoutExercise({
+                id: item.exercise.id,
+                name: item.exercise.name,
+                name_de: item.exercise.name_de,
+                image_url: item.exercise.image_url,
+                body_part: item.exercise.primary_category,
+              })
+              setSelectedExercise(null)
+            }
+          }}
+        />
+      )}
+
+      {/* Add Workout Modal */}
+      {addWorkoutExercise && (
+        <ExerciseInputModal
+          isOpen={!!addWorkoutExercise}
+          onClose={() => setAddWorkoutExercise(null)}
+          exercise={addWorkoutExercise}
         />
       )}
     </div>

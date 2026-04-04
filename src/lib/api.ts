@@ -290,6 +290,7 @@ class ApiClient {
 
   async createWorkout(data: {
     training_plan_day_id?: number
+    performed_at?: string
     sets: {
       exercise_id: number
       set_number: number
@@ -326,6 +327,17 @@ class ApiClient {
   async deleteWorkoutSet(setId: number) {
     return this.request<{ success: boolean }>(`/api/workout-sets/${setId}`, {
       method: 'DELETE',
+    })
+  }
+
+  // =====================================================
+  // FEEDBACK
+  // =====================================================
+
+  async submitFeedback(data: { message: string; imageUrls?: string[]; category?: string }) {
+    return this.request<{ success: boolean }>('/api/feedback', {
+      method: 'POST',
+      body: JSON.stringify(data),
     })
   }
 
