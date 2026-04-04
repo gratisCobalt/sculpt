@@ -230,9 +230,42 @@ class ApiClient {
     return this.request<any[]>('/api/training-plans')
   }
 
+  async getMyPlans() {
+    return this.request<Array<{
+      id: number
+      name: string
+      name_de?: string
+      days_per_week: number
+      total_days: number
+      total_exercises: number
+      is_active: number
+      created_at: string
+    }>>('/api/training-plans/mine')
+  }
+
   async getTrainingPlan(id: number) {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     return this.request<any>(`/api/training-plans/${id}`)
+  }
+
+  async deletePlan(planId: number) {
+    return this.request<{ success: boolean }>(`/api/training-plans/${planId}`, {
+      method: 'DELETE',
+    })
+  }
+
+  async renamePlan(planId: number, name: string) {
+    return this.request<{ success: boolean }>(`/api/training-plans/${planId}`, {
+      method: 'PATCH',
+      body: JSON.stringify({ name, name_de: name }),
+    })
+  }
+
+  async setActivePlan(planId: number) {
+    return this.request<{ success: boolean }>('/api/users/me/training-plan', {
+      method: 'POST',
+      body: JSON.stringify({ training_plan_id: planId }),
+    })
   }
 
   async getUserTrainingPlan() {
@@ -267,6 +300,26 @@ class ApiClient {
     })
   }
 
+  async updatePlanDay(planId: number, dayId: number, data: { name: string; name_de?: string }) {
+    return this.request<{ success: boolean }>(`/api/training-plans/${planId}/days/${dayId}`, {
+      method: 'PATCH',
+      body: JSON.stringify(data),
+    })
+  }
+
+  async addPlanDay(planId: number, data: { name: string; name_de?: string }) {
+    return this.request<{ success: boolean; id: number; day_number: number }>(`/api/training-plans/${planId}/days`, {
+      method: 'POST',
+      body: JSON.stringify(data),
+    })
+  }
+
+  async deletePlanDay(planId: number, dayId: number) {
+    return this.request<{ success: boolean }>(`/api/training-plans/${planId}/days/${dayId}`, {
+      method: 'DELETE',
+    })
+  }
+
   async generateTrainingPlan(data: {
     fitness_goal: string
     experience_level: string
@@ -275,13 +328,17 @@ class ApiClient {
     body_weight_kg?: number
   }) {
     return this.request<{
-      success: boolean
-      plan_id: number
-      plan_name: string
+      status: string
     }>('/api/ai/generate-plan', {
       method: 'POST',
       body: JSON.stringify(data),
     })
+  }
+
+  async getPlanStatus() {
+    return this.request<{
+      status: 'pending' | 'ready' | 'failed' | 'idle'
+    }>('/api/ai/plan-status')
   }
 
   // =====================================================

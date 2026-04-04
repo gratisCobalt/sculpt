@@ -181,7 +181,7 @@ export default function ProfilePage() {
   return (
     <div className="min-h-screen px-6 pt-6 pb-24 safe-top">
       {/* Profile Header */}
-      <div className="flex flex-col items-center mb-8">
+      <div className="flex flex-col pt-6 items-center mb-8">
         <div className="w-24 h-24 rounded-full bg-[hsl(var(--surface-soft))] flex items-center justify-center mb-4 overflow-hidden">
           {user?.avatar_url ? (
             <img

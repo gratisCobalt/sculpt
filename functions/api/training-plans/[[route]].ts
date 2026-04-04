@@ -215,10 +215,17 @@ async function handleSetUserPlan(ctx: RequestContext): Promise<Response> {
 
 // Helper: verify plan ownership
 async function verifyPlanOwnership(env: Env, userId: string, planId: number): Promise<boolean> {
-  const owns = await env.database.prepare(
-    'SELECT 1 FROM user_training_plan WHERE user_id = ? AND training_plan_id = ? AND is_active = 1'
+  // Check user_training_plan (any status, not just active)
+  const linked = await env.database.prepare(
+    'SELECT 1 FROM user_training_plan WHERE user_id = ? AND training_plan_id = ?'
   ).bind(userId, planId).first()
-  return !!owns
+  if (linked) return true
+
+  // Fallback: check if user created the plan
+  const created = await env.database.prepare(
+    'SELECT 1 FROM training_plan WHERE id = ? AND created_by_id = ?'
+  ).bind(planId, userId).first()
+  return !!created
 }
 
 // PATCH /api/training-plans/:planId/exercises/:exerciseId
@@ -413,6 +420,235 @@ async function handleReorderPlanExercises(ctx: RequestContext): Promise<Response
   }
 }
 
+// PATCH /api/training-plans/:planId/days/:dayId - Update day name
+async function handleUpdateDay(ctx: RequestContext): Promise<Response> {
+  const { request, env, url } = ctx
+
+  const userId = await getUserIdFromRequest(request, env)
+  if (!userId) return errorResponse('Unauthorized', 401)
+
+  const match = url.pathname.match(/\/api\/training-plans\/(\d+)\/days\/(\d+)$/)
+  if (!match) return errorResponse('Invalid path', 400)
+
+  const [, planId, dayId] = match
+
+  try {
+    const body = await request.json() as { name?: string; name_de?: string }
+
+    // Verify ownership
+    const plan = await env.database.prepare(
+      'SELECT id FROM training_plan WHERE id = ? AND created_by_id = ?'
+    ).bind(planId, userId).first()
+    if (!plan) return errorResponse('Plan not found', 404)
+
+    const day = await env.database.prepare(
+      'SELECT id FROM training_plan_day WHERE id = ? AND training_plan_id = ?'
+    ).bind(dayId, planId).first()
+    if (!day) return errorResponse('Day not found', 404)
+
+    await env.database.prepare(
+      'UPDATE training_plan_day SET name = ?, name_de = ? WHERE id = ?'
+    ).bind(body.name || null, body.name_de || body.name || null, dayId).run()
+
+    return jsonResponse({ success: true })
+  } catch (error) {
+    console.error('Update day error:', error)
+    return errorResponse('Failed to update day', 500)
+  }
+}
+
+// POST /api/training-plans/:planId/days - Add a new day
+async function handleAddDay(ctx: RequestContext): Promise<Response> {
+  const { request, env, url } = ctx
+
+  const userId = await getUserIdFromRequest(request, env)
+  if (!userId) return errorResponse('Unauthorized', 401)
+
+  const match = url.pathname.match(/\/api\/training-plans\/(\d+)\/days$/)
+  if (!match) return errorResponse('Invalid path', 400)
+
+  const planId = match[1]
+
+  try {
+    const body = await request.json() as { name: string; name_de?: string }
+    if (!body.name) return errorResponse('name is required', 400)
+
+    // Verify ownership
+    const plan = await env.database.prepare(
+      'SELECT id FROM training_plan WHERE id = ? AND created_by_id = ?'
+    ).bind(planId, userId).first()
+    if (!plan) return errorResponse('Plan not found', 404)
+
+    // Get next day_number
+    const maxDay = await env.database.prepare(
+      'SELECT COALESCE(MAX(day_number), 0) as max_num FROM training_plan_day WHERE training_plan_id = ?'
+    ).bind(planId).first<{ max_num: number }>()
+
+    const dayNumber = (maxDay?.max_num || 0) + 1
+
+    const result = await env.database.prepare(
+      'INSERT INTO training_plan_day (training_plan_id, day_number, name, name_de) VALUES (?, ?, ?, ?)'
+    ).bind(planId, dayNumber, body.name, body.name_de || body.name).run()
+
+    return jsonResponse({ success: true, id: result.meta.last_row_id, day_number: dayNumber })
+  } catch (error) {
+    console.error('Add day error:', error)
+    return errorResponse('Failed to add day', 500)
+  }
+}
+
+// DELETE /api/training-plans/:planId/days/:dayId - Delete a day
+async function handleDeleteDay(ctx: RequestContext): Promise<Response> {
+  const { request, env, url } = ctx
+
+  const userId = await getUserIdFromRequest(request, env)
+  if (!userId) return errorResponse('Unauthorized', 401)
+
+  const match = url.pathname.match(/\/api\/training-plans\/(\d+)\/days\/(\d+)$/)
+  if (!match) return errorResponse('Invalid path', 400)
+
+  const [, planId, dayId] = match
+
+  try {
+    // Verify ownership
+    const plan = await env.database.prepare(
+      'SELECT id FROM training_plan WHERE id = ? AND created_by_id = ?'
+    ).bind(planId, userId).first()
+    if (!plan) return errorResponse('Plan not found', 404)
+
+    // Delete exercises first, then the day
+    await env.database.prepare(
+      'DELETE FROM training_plan_exercise WHERE training_plan_day_id = ?'
+    ).bind(dayId).run()
+
+    await env.database.prepare(
+      'DELETE FROM training_plan_day WHERE id = ? AND training_plan_id = ?'
+    ).bind(dayId, planId).run()
+
+    return jsonResponse({ success: true })
+  } catch (error) {
+    console.error('Delete day error:', error)
+    return errorResponse('Failed to delete day', 500)
+  }
+}
+
+// GET /api/training-plans/mine - List all user's training plans
+async function handleListMyPlans(ctx: RequestContext): Promise<Response> {
+  const { request, env } = ctx
+
+  const userId = await getUserIdFromRequest(request, env)
+  if (!userId) return errorResponse('Unauthorized', 401)
+
+  try {
+    const result = await env.database.prepare(`
+      SELECT DISTINCT tp.id, tp.name, tp.name_de, tp.description_de, tp.days_per_week, tp.created_at,
+        (SELECT COUNT(*) FROM training_plan_day WHERE training_plan_id = tp.id) as total_days,
+        (SELECT COUNT(*) FROM training_plan_exercise tpe
+         JOIN training_plan_day tpd ON tpe.training_plan_day_id = tpd.id
+         WHERE tpd.training_plan_id = tp.id) as total_exercises,
+        CASE WHEN utp.is_active = 1 THEN 1 ELSE 0 END as is_active
+      FROM training_plan tp
+      LEFT JOIN user_training_plan utp ON tp.id = utp.training_plan_id AND utp.user_id = ?
+      WHERE tp.created_by_id = ? OR utp.user_id = ?
+      ORDER BY utp.is_active DESC, tp.created_at DESC
+    `).bind(userId, userId, userId).all()
+
+    return jsonResponse(result.results || [])
+  } catch (error) {
+    console.error('List my plans error:', error)
+    return errorResponse('Failed to list plans', 500)
+  }
+}
+
+// DELETE /api/training-plans/:id - Delete a training plan
+async function handleDeletePlan(ctx: RequestContext): Promise<Response> {
+  const { request, env, url } = ctx
+
+  const userId = await getUserIdFromRequest(request, env)
+  if (!userId) return errorResponse('Unauthorized', 401)
+
+  const match = url.pathname.match(/\/api\/training-plans\/(\d+)$/)
+  if (!match) return errorResponse('Invalid path', 400)
+
+  const planId = parseInt(match[1])
+
+  if (!(await verifyPlanOwnership(env, userId, planId))) {
+    return errorResponse('Not found', 404)
+  }
+
+  try {
+    // Delete exercises → days → user_training_plan → plan
+    const days = await env.database.prepare(
+      'SELECT id FROM training_plan_day WHERE training_plan_id = ?'
+    ).bind(planId).all()
+
+    for (const day of (days.results || []) as Record<string, unknown>[]) {
+      await env.database.prepare(
+        'DELETE FROM training_plan_exercise WHERE training_plan_day_id = ?'
+      ).bind(day.id).run()
+    }
+
+    await env.database.prepare(
+      'DELETE FROM training_plan_day WHERE training_plan_id = ?'
+    ).bind(planId).run()
+
+    await env.database.prepare(
+      'DELETE FROM user_training_plan WHERE training_plan_id = ?'
+    ).bind(planId).run()
+
+    await env.database.prepare(
+      'DELETE FROM training_plan WHERE id = ?'
+    ).bind(planId).run()
+
+    // Auto-activate the most recent remaining plan
+    const nextPlan = await env.database.prepare(
+      'SELECT training_plan_id FROM user_training_plan WHERE user_id = ? ORDER BY started_at DESC LIMIT 1'
+    ).bind(userId).first<{ training_plan_id: number }>()
+
+    if (nextPlan) {
+      await env.database.prepare(
+        'UPDATE user_training_plan SET is_active = 1 WHERE user_id = ? AND training_plan_id = ?'
+      ).bind(userId, nextPlan.training_plan_id).run()
+    }
+
+    return jsonResponse({ success: true })
+  } catch (error) {
+    console.error('Delete plan error:', error)
+    return errorResponse('Failed to delete plan', 500)
+  }
+}
+
+// PATCH /api/training-plans/:id - Rename a training plan
+async function handleRenamePlan(ctx: RequestContext): Promise<Response> {
+  const { request, env, url } = ctx
+
+  const userId = await getUserIdFromRequest(request, env)
+  if (!userId) return errorResponse('Unauthorized', 401)
+
+  const match = url.pathname.match(/\/api\/training-plans\/(\d+)$/)
+  if (!match) return errorResponse('Invalid path', 400)
+
+  const planId = parseInt(match[1])
+
+  if (!(await verifyPlanOwnership(env, userId, planId))) {
+    return errorResponse('Not found', 404)
+  }
+
+  try {
+    const body = await request.json() as { name?: string; name_de?: string }
+    if (!body.name) return errorResponse('name is required', 400)
+
+    await env.database.prepare(
+      'UPDATE training_plan SET name = ?, name_de = ?, updated_at = ? WHERE id = ?'
+    ).bind(body.name, body.name_de || body.name, nowISO(), planId).run()
+
+    return jsonResponse({ success: true })
+  } catch (error) {
+    console.error('Rename plan error:', error)
+    return errorResponse('Failed to rename plan', 500)
+  }
+}
+
 // Main request handler
 export const onRequest: PagesFunction<Env> = async (context) => {
   const { request, env } = context
@@ -425,18 +661,36 @@ export const onRequest: PagesFunction<Env> = async (context) => {
 
   const ctx: RequestContext = { request, env, url }
 
+  // User's own plans (must come before generic /training-plans routes)
+  if (request.method === 'GET' && path === '/api/training-plans/mine') {
+    return handleListMyPlans(ctx)
+  }
+
   if (request.method === 'GET' && path === '/api/training-plans') {
     return handleListPlans(ctx)
   }
 
-  if (request.method === 'GET' && path.match(/^\/api\/training-plans\/\d+$/)) {
-    return handleGetPlan(ctx)
+  // Plan-level CRUD (rename, delete)
+  if (path.match(/^\/api\/training-plans\/\d+$/) && !path.includes('days') && !path.includes('exercises')) {
+    if (request.method === 'GET') return handleGetPlan(ctx)
+    if (request.method === 'PATCH') return handleRenamePlan(ctx)
+    if (request.method === 'DELETE') return handleDeletePlan(ctx)
   }
 
   // Plan exercise editing routes
   if (path.match(/^\/api\/training-plans\/\d+\/exercises\/\d+$/)) {
     if (request.method === 'PATCH') return handleUpdatePlanExercise(ctx)
     if (request.method === 'DELETE') return handleDeletePlanExercise(ctx)
+  }
+
+  // Day CRUD routes
+  if (path.match(/^\/api\/training-plans\/\d+\/days\/\d+$/) && !path.includes('exercises')) {
+    if (request.method === 'PATCH') return handleUpdateDay(ctx)
+    if (request.method === 'DELETE') return handleDeleteDay(ctx)
+  }
+
+  if (request.method === 'POST' && path.match(/^\/api\/training-plans\/\d+\/days$/)) {
+    return handleAddDay(ctx)
   }
 
   if (request.method === 'POST' && path.match(/^\/api\/training-plans\/\d+\/days\/\d+\/exercises$/)) {

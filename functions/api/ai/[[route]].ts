@@ -349,8 +349,37 @@ async function handleDeleteConversation(ctx: RequestContext): Promise<Response> 
   }
 }
 
-// POST /api/ai/generate-plan - AI training plan generation (non-streaming)
-async function handleGeneratePlan(ctx: RequestContext): Promise<Response> {
+// GET /api/ai/plan-status - Check async plan generation status
+async function handlePlanStatus(ctx: RequestContext): Promise<Response> {
+  const { request, env } = ctx
+
+  const userId = await getUserIdFromRequest(request, env)
+  if (!userId) return errorResponse('Unauthorized', 401)
+
+  const user = await env.database.prepare(
+    'SELECT plan_generation_status FROM app_user WHERE id = ?'
+  ).bind(userId).first<{ plan_generation_status: string | null }>()
+
+  if (!user) return errorResponse('User not found', 404)
+
+  if (user.plan_generation_status === 'pending') {
+    return jsonResponse({ status: 'pending' })
+  }
+
+  if (user.plan_generation_status === 'failed') {
+    return jsonResponse({ status: 'failed' })
+  }
+
+  // Check if user has an active plan
+  const activePlan = await env.database.prepare(
+    'SELECT training_plan_id FROM user_training_plan WHERE user_id = ? AND is_active = 1'
+  ).bind(userId).first()
+
+  return jsonResponse({ status: activePlan ? 'ready' : 'idle' })
+}
+
+// POST /api/ai/generate-plan - AI training plan generation (async via waitUntil)
+async function handleGeneratePlan(ctx: RequestContext, waitUntil: (promise: Promise<unknown>) => void): Promise<Response> {
   const { request, env } = ctx
 
   const userId = await getUserIdFromRequest(request, env)
@@ -383,6 +412,40 @@ async function handleGeneratePlan(ctx: RequestContext): Promise<Response> {
       return errorResponse('Rate limit exceeded. Please wait before generating another plan.', 429)
     }
 
+    // Mark user as pending
+    await env.database.prepare(
+      'UPDATE app_user SET plan_generation_status = ? WHERE id = ?'
+    ).bind('pending', userId).run()
+
+    // Return immediately — generation continues in background
+    waitUntil(generatePlanInBackground(env, userId, {
+      fitness_goal, experience_level, training_frequency, focus_areas, body_weight_kg, available_exercises,
+    }))
+
+    return jsonResponse({ status: 'generating' }, 202)
+  } catch (error) {
+    const detail = error instanceof Error ? error.message : String(error)
+    console.error('Generate plan error:', detail)
+    return errorResponse(`Failed to start plan generation: ${detail}`, 500)
+  }
+}
+
+// Background plan generation (runs via waitUntil)
+async function generatePlanInBackground(
+  env: Env,
+  userId: string,
+  params: {
+    fitness_goal: string
+    experience_level: string
+    training_frequency: number
+    focus_areas: string[]
+    body_weight_kg?: number
+    available_exercises?: number[]
+  }
+): Promise<void> {
+  const { fitness_goal, experience_level, training_frequency, focus_areas, body_weight_kg, available_exercises } = params
+
+  try {
     // Load exercises from DB
     let exercisesResult
     if (available_exercises && available_exercises.length > 0) {
@@ -392,7 +455,7 @@ async function handleGeneratePlan(ctx: RequestContext): Promise<Response> {
       ).bind(...available_exercises).all()
     } else {
       exercisesResult = await env.database.prepare(
-        'SELECT id, name FROM exercise LIMIT 50'
+        'SELECT id, name FROM exercise'
       ).all()
     }
 
@@ -400,10 +463,10 @@ async function handleGeneratePlan(ctx: RequestContext): Promise<Response> {
     const exerciseNames = exercises.map(e => e.name as string)
 
     // Build system prompt - keep concise for faster AI response
-    const planSystemPrompt = `Fitness-Trainer. Antworte NUR mit JSON, kein Text/Markdown.
+    const planSystemPrompt = `Fitness-Trainer. Antworte NUR mit JSON, kein Text/Markdown. ALLES auf Deutsch.
 Erlaubte Übungen: ${exerciseNames.join(', ')}
-Format: {"name":"EN","name_de":"DE","description":"EN","description_de":"DE","days":[{"day_number":1,"name":"EN","name_de":"DE","focus_description":"...","exercises":[{"exercise_name":"EXAKT aus Liste","sets":3,"min_reps":8,"max_reps":12,"rest_seconds":90,"notes":"..."}]}]}
-NUR Übungen aus der Liste verwenden. 4-5 Übungen pro Tag. Kurze notes.`
+Format: {"name":"Deutscher Name","description":"Deutsche Beschreibung","days":[{"day_number":1,"name":"Deutscher Tag-Name","focus_description":"...","exercises":[{"exercise_name":"EXAKT aus Liste","sets":3,"min_reps":8,"max_reps":12,"rest_seconds":90,"notes":"..."}]}]}
+NUR Übungen aus der Liste verwenden. 4-5 Übungen pro Tag. Kurze notes auf Deutsch. Tag-Namen auf Deutsch (z.B. "Brust & Trizeps", "Rücken & Bizeps").`
 
     const userPrompt = `Erstelle einen Trainingsplan mit folgenden Vorgaben:
 - Fitnessziel: ${fitness_goal}
@@ -423,7 +486,7 @@ NUR Übungen aus der Liste verwenden. 4-5 Übungen pro Tag. Kurze notes.`
       jsonStr = jsonStr.replace(/^```(?:json)?\s*\n?/, '').replace(/\n?```\s*$/, '')
     }
 
-    let planData: {
+    const planData: {
       name: string
       name_de?: string
       description?: string
@@ -442,22 +505,16 @@ NUR Übungen aus der Liste verwenden. 4-5 Übungen pro Tag. Kurze notes.`
           notes?: string
         }>
       }>
-    }
-
-    try {
-      planData = JSON.parse(jsonStr)
-    } catch {
-      return errorResponse('AI returned invalid JSON. Please try again.', 422)
-    }
+    } = JSON.parse(jsonStr)
 
     const now = nowISO()
 
-    // Insert training plan (INTEGER AUTOINCREMENT — don't provide id)
+    // Insert training plan
     const planResult = await env.database.prepare(
       `INSERT INTO training_plan (name, name_de, description, description_de, created_by_id, is_system_plan, days_per_week, created_at, updated_at)
        VALUES (?, ?, ?, ?, ?, 0, ?, ?, ?)`
     ).bind(
-      planData.name, planData.name_de || null, planData.description || null, planData.description_de || null,
+      planData.name, planData.name_de || planData.name, planData.description || null, planData.description_de || planData.description || null,
       userId, training_frequency, now, now
     ).run()
 
@@ -469,21 +526,34 @@ NUR Übungen aus der Liste verwenden. 4-5 Übungen pro Tag. Kurze notes.`
       exerciseLookup.set((ex.name as string).toLowerCase(), ex.id)
     }
 
+    // Fuzzy match: find best match by substring
+    const fuzzyMatch = (name: string): unknown | undefined => {
+      const lower = name.toLowerCase()
+      // Try exact match first
+      const exact = exerciseLookup.get(lower)
+      if (exact) return exact
+      // Try substring: find exercise whose name contains the query or vice versa
+      for (const [exName, exId] of exerciseLookup) {
+        if (exName.includes(lower) || lower.includes(exName)) return exId
+      }
+      return undefined
+    }
+
     // Insert days and exercises
     for (const day of planData.days) {
       const dayResult = await env.database.prepare(
         `INSERT INTO training_plan_day (training_plan_id, day_number, name, name_de, focus_description)
          VALUES (?, ?, ?, ?, ?)`
-      ).bind(planId, day.day_number, day.name, day.name_de || null, day.focus_description || null).run()
+      ).bind(planId, day.day_number, day.name, day.name_de || day.name, day.focus_description || null).run()
 
       const dayId = dayResult.meta.last_row_id
 
       for (let i = 0; i < day.exercises.length; i++) {
         const exercise = day.exercises[i]
-        const exerciseId = exerciseLookup.get(exercise.exercise_name.toLowerCase())
+        const exerciseId = fuzzyMatch(exercise.exercise_name)
 
         if (!exerciseId) {
-          console.warn(`Exercise not found: "${exercise.exercise_name}" - skipping`)
+          console.warn(`Exercise not found (no fuzzy match): "${exercise.exercise_name}" - skipping`)
           continue
         }
 
@@ -506,14 +576,20 @@ NUR Übungen aus der Liste verwenden. 4-5 Übungen pro Tag. Kurze notes.`
        DO UPDATE SET is_active = 1, current_day = 1, started_at = ?`
     ).bind(userId, planId, now, now).run()
 
-    return jsonResponse({ success: true, plan_id: planId, plan_name: planData.name_de || planData.name })
+    // Mark generation as complete
+    await env.database.prepare(
+      'UPDATE app_user SET plan_generation_status = NULL WHERE id = ?'
+    ).bind(userId).run()
+
+    console.log(`Plan generated successfully for user ${userId}: plan_id=${planId}`)
   } catch (error) {
     const detail = error instanceof Error ? error.message : String(error)
-    console.error('Generate plan error:', detail)
-    if (error instanceof SyntaxError) {
-      return errorResponse('AI returned invalid JSON. Please try again.', 422)
-    }
-    return errorResponse(`Failed to generate training plan: ${detail}`, 500)
+    console.error(`Background plan generation failed for user ${userId}:`, detail)
+
+    // Mark generation as failed
+    await env.database.prepare(
+      'UPDATE app_user SET plan_generation_status = ? WHERE id = ?'
+    ).bind('failed', userId).run()
   }
 }
 
@@ -549,9 +625,14 @@ export const onRequest: PagesFunction<Env> = async (context) => {
     return handleDeleteConversation(ctx)
   }
 
+  // GET /api/ai/plan-status
+  if (request.method === 'GET' && path === '/api/ai/plan-status') {
+    return handlePlanStatus(ctx)
+  }
+
   // POST /api/ai/generate-plan
   if (request.method === 'POST' && path === '/api/ai/generate-plan') {
-    return handleGeneratePlan(ctx)
+    return handleGeneratePlan(ctx, context.waitUntil.bind(context))
   }
 
   return errorResponse('Not found', 404)

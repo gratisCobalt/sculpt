@@ -48,7 +48,6 @@ export function ExerciseInputModal({ isOpen, onClose, exercise }: ExerciseInputM
                 reps: '',
             }))
         )
-        // eslint-disable-next-line react-hooks/set-state-in-effect
         setWorkoutDate(new Date().toISOString().slice(0, 10))
         setWorkoutNote('')
         setShowNoteInput(false)
