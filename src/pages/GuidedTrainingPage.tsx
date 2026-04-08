@@ -20,6 +20,7 @@ import { useAuth } from '@/hooks/useAuth'
 import { api } from '@/lib/api'
 import type { TrainingPlanDay, TrainingPlanExercise } from '@/types/database'
 import heroBackground from '@/assets/gym-deadlift-background.png'
+import { haptics } from '@/lib/haptics'
 
 interface ExerciseWithMachine extends TrainingPlanExercise {
   machine: { id: string; name: string } | null
@@ -184,10 +185,12 @@ export default function GuidedTrainingPage() {
 
     if (currentExerciseIndex < (exercises?.length || 0) - 1) {
       // Move to next exercise
+      haptics.success()
       setCurrentExerciseIndex(prev => prev + 1)
       setEditingSets(false)
     } else {
       // Last exercise → training complete
+      haptics.heavy()
       setShowConfetti(true)
       setShowSummary(true)
     }

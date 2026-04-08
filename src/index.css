@@ -59,6 +59,12 @@
   border-color: hsl(var(--border));
 }
 
+html {
+  overflow: hidden;
+  overscroll-behavior: none;
+  height: 100%;
+}
+
 body {
   margin: 0;
   background-color: hsl(var(--background));
@@ -66,7 +72,9 @@ body {
   font-family: 'Inter', system-ui, -apple-system, sans-serif;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
-  min-height: 100dvh;
+  height: 100%;
+  overflow-y: auto;
+  overscroll-behavior-y: none;
 }
 
 /* ===== Glasmorphismus Effekte ===== */

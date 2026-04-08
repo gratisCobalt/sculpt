@@ -6,6 +6,7 @@ import { Card, CardContent } from '@/components/ui/card'
 import { ExerciseInputModal } from '@/components/ExerciseInputModal'
 import { getCategoryIcon } from '@/components/CategoryIcons'
 import { cn } from '@/lib/utils'
+import { haptics } from '@/lib/haptics'
 import { api } from '@/lib/api'
 
 const ITEMS_PER_PAGE = 20
@@ -109,6 +110,7 @@ export default function AddWorkoutPage() {
   const totalCount = data?.pages[0]?.pagination.total ?? 0
 
   const handleExerciseClick = (exercise: Exercise) => {
+    haptics.light()
     setSelectedExercise(exercise)
   }
 

@@ -6,6 +6,7 @@ export interface Env {
   JWT_SECRET: string
   GOOGLE_CLIENT_ID: string
   GOOGLE_CLIENT_SECRET: string
+  GOOGLE_IOS_CLIENT_ID: string
   // AI Provider
   AI_PROVIDER: string
   OLLAMA_BASE_URL: string

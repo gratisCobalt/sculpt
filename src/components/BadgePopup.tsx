@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react'
 import { X, Trophy, Sparkles } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
+import { haptics } from '@/lib/haptics'
 
 interface Badge {
   id: number
@@ -48,6 +49,7 @@ export function BadgePopup({ badge, onClose }: BadgePopupProps) {
   useEffect(() => {
     if (badge) {
       // Trigger entrance animation
+      haptics.success()
       // eslint-disable-next-line react-hooks/set-state-in-effect
       setIsVisible(true)
       setShowConfetti(true)

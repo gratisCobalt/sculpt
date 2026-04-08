@@ -1,6 +1,9 @@
+import { Capacitor } from '@capacitor/core'
+
 // API Base URL - empty string for relative paths (works with Pages Functions)
-// Set VITE_API_BASE_URL for local dev with separate backend
-const API_BASE = import.meta.env.VITE_API_BASE_URL || ''
+// In native Capacitor, WebView runs at capacitor://localhost so we need absolute URLs
+const API_BASE = import.meta.env.VITE_API_BASE_URL ||
+  (Capacitor.isNativePlatform() ? 'https://sculpt-app.de' : '')
 
 class ApiClient {
   private token: string | null = null
@@ -624,14 +627,14 @@ class ApiClient {
   // PUSH NOTIFICATIONS
   // =====================================================
 
-  async registerPushToken(subscription: { endpoint: string; keys: { p256dh: string; auth: string } }) {
+  async registerPushToken(data: {
+    token: string
+    platform: 'web' | 'ios'
+    subscription?: { endpoint: string; keys: { p256dh: string; auth: string } }
+  }) {
     return this.request<{ success: boolean }>('/api/push-tokens', {
       method: 'POST',
-      body: JSON.stringify({ 
-        token: subscription.endpoint,
-        platform: 'web',
-        subscription 
-      }),
+      body: JSON.stringify(data),
     })
   }
 

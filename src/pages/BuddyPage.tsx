@@ -22,6 +22,7 @@ import { Input } from '@/components/ui/input'
 import { cn } from '@/lib/utils'
 import { api } from '@/lib/api'
 import type { LeaderboardUser, Challenge } from '@/lib/api'
+import { haptics } from '@/lib/haptics'
 import { useAuth } from '@/hooks/useAuth'
 import ChallengeModal from '@/components/ChallengeModal'
 
@@ -97,6 +98,7 @@ export default function BuddyPage() {
   const sendRequestMutation = useMutation({
     mutationFn: (userId: string) => api.sendFriendRequest(userId),
     onSuccess: () => {
+      haptics.success()
       queryClient.invalidateQueries({ queryKey: ['buddies'] })
       setSearchQuery('')
       setIsSearching(false)
@@ -106,7 +108,10 @@ export default function BuddyPage() {
   const respondRequestMutation = useMutation({
     mutationFn: ({ friendshipId, action }: { friendshipId: number; action: 'accept' | 'reject' }) =>
       api.respondToFriendRequest(friendshipId, action),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['buddies'] }),
+    onSuccess: () => {
+      haptics.success()
+      queryClient.invalidateQueries({ queryKey: ['buddies'] })
+    },
   })
 
   const acceptChallengeMutation = useMutation({

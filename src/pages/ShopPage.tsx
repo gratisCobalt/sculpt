@@ -5,6 +5,7 @@ import { Card, CardContent } from '@/components/ui/card'
 import { cn } from '@/lib/utils'
 import { api } from '@/lib/api'
 import { useAuth } from '@/hooks/useAuth'
+import { haptics } from '@/lib/haptics'
 
 const categoryIcons: Record<string, typeof ShoppingBag> = {
   consumable: Gift,
@@ -51,6 +52,7 @@ export default function ShopPage() {
   const purchaseMutation = useMutation({
     mutationFn: (itemId: number) => api.purchaseItem(itemId),
     onSuccess: () => {
+      haptics.medium()
       queryClient.invalidateQueries({ queryKey: ['inventory'] })
       refreshProfile()
     },

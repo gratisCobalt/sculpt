@@ -6,6 +6,7 @@ import { Card, CardContent } from '@/components/ui/card'
 import { cn } from '@/lib/utils'
 import { api } from '@/lib/api'
 import { useAuth } from '@/hooks/useAuth'
+import { haptics } from '@/lib/haptics'
 
 const rarityConfig: Record<string, { name: string; color: string; bgColor: string; borderColor: string; glow: string }> = {
   common: {
@@ -64,6 +65,8 @@ function LootBoxModal({ box, onClose, onUpdate }: LootBoxModalProps) {
     onSuccess: (data) => {
       setIsAnimating(true)
       setJustUpgraded(data.upgraded ?? false)
+      if (data.upgraded) haptics.heavy()
+      if (data.coins_awarded) haptics.success()
 
       // Map rarity_id to rarity_code
       const rarityCodeMap: Record<number, string> = {
@@ -96,6 +99,7 @@ function LootBoxModal({ box, onClose, onUpdate }: LootBoxModalProps) {
 
   const handleClick = () => {
     if (currentBox.clicks_remaining > 0 && !clickMutation.isPending && !isAnimating) {
+      haptics.medium()
       clickMutation.mutate()
     }
   }
