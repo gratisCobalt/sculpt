@@ -12,7 +12,6 @@ React Native-style fitness tracking web app built with React, TypeScript, Vite, 
 - Recharts (charts/graphs)
 - Vitest + Testing Library (tests)
 - Cloudflare Pages + Workers (deployment)
-- PostHog (analytics)
 
 ## File Structure
 - `src/components/` - Reusable UI components
