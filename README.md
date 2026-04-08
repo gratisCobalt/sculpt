@@ -60,13 +60,6 @@ npm run dev
 
 Die App läuft auf `http://localhost:5173`. Das Backend läuft auf Cloudflare — lokal wird nur das Frontend gestartet.
 
-### Test-Account
-
-| Feld | Wert |
-|------|------|
-| Email | `test@sculpt-app.de` |
-| Passwort | `test1234` |
-
 ## Scripts
 
 ```bash
