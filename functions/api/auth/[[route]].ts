@@ -160,7 +160,7 @@ async function handleGoogleAuth(ctx: RequestContext): Promise<Response> {
     }
     
     // Verify the Google token
-    const googleUser = await verifyGoogleIdToken(idToken, env.GOOGLE_CLIENT_ID)
+    const googleUser = await verifyGoogleIdToken(idToken, env.GOOGLE_CLIENT_ID, [env.GOOGLE_IOS_CLIENT_ID])
     if (!googleUser) {
       return errorResponse('Invalid Google token', 401)
     }
@@ -258,7 +258,7 @@ async function handleGoogleLink(ctx: RequestContext): Promise<Response> {
     }
     
     // Verify the Google token
-    const googleUser = await verifyGoogleIdToken(idToken, env.GOOGLE_CLIENT_ID)
+    const googleUser = await verifyGoogleIdToken(idToken, env.GOOGLE_CLIENT_ID, [env.GOOGLE_IOS_CLIENT_ID])
     if (!googleUser) {
       return errorResponse('Invalid Google token', 401)
     }

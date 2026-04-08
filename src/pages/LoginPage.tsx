@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from 'react'
 import { Dumbbell, Mail, Lock, User, Eye, EyeOff } from 'lucide-react'
 import { FcGoogle } from 'react-icons/fc'
+import { Capacitor } from '@capacitor/core'
 import { Button } from '@/components/ui/button'
 import { useAuth } from '@/hooks/useAuth'
 import { useGoogleAuth } from '@/hooks/useGoogleAuth'
@@ -35,10 +36,12 @@ export default function LoginPage() {
   }, [signInWithGoogle])
 
   // Use reusable Google Auth hook
-  const { isReady: googleReady, prompt: googlePrompt, renderButton } = useGoogleAuth({
+  const { isReady: googleReady, signIn: googleSignIn, prompt: googlePrompt, renderButton } = useGoogleAuth({
     onCredential: handleGoogleCallback,
     onError: (msg) => console.error('Google Auth Error:', msg)
   })
+
+  const isNativeApp = Capacitor.isNativePlatform()
 
   // Render Google button when ready
   useEffect(() => {
@@ -251,25 +254,42 @@ export default function LoginPage() {
 
         {/* Google Sign-In Button */}
         <div className="flex flex-col items-center gap-3">
-          {/* Native Google Button (rendered by GSI) */}
-          <div
-            id="google-signin-button"
-            className={googleLoading ? 'opacity-50 pointer-events-none' : ''}
-          />
-
-          {/* Fallback button if GSI doesn't render */}
-          {!googleReady && (
+          {isNativeApp ? (
+            /* Native: Capacitor Google Auth plugin */
             <Button
               type="button"
               variant="outline"
               size="lg"
               className="w-full"
-              onClick={handleGoogleClick}
-              disabled={googleLoading}
+              onClick={googleSignIn}
+              disabled={googleLoading || !googleReady}
             >
               <FcGoogle className="w-5 h-5 mr-2" />
               {googleLoading ? 'Anmelden...' : 'Mit Google fortfahren'}
             </Button>
+          ) : (
+            <>
+              {/* Web: Google Identity Services rendered button */}
+              <div
+                id="google-signin-button"
+                className={googleLoading ? 'opacity-50 pointer-events-none' : ''}
+              />
+
+              {/* Fallback button if GSI doesn't render */}
+              {!googleReady && (
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="lg"
+                  className="w-full"
+                  onClick={handleGoogleClick}
+                  disabled={googleLoading}
+                >
+                  <FcGoogle className="w-5 h-5 mr-2" />
+                  {googleLoading ? 'Anmelden...' : 'Mit Google fortfahren'}
+                </Button>
+              )}
+            </>
           )}
         </div>
 

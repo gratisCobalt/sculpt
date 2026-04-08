@@ -20,8 +20,8 @@
     <div id="root"></div>
     <script type="module" src="/src/main.tsx"></script>
     <script>
-      // Register Service Worker
-      if ('serviceWorker' in navigator) {
+      // Register Service Worker (skip in Capacitor — native push handles notifications)
+      if ('serviceWorker' in navigator && !window.Capacitor) {
         window.addEventListener('load', () => {
           navigator.serviceWorker.register('/sw.js')
             .then((registration) => {

@@ -25,7 +25,9 @@ import AgbPage from '@/pages/AgbPage'
 import { BottomNav } from '@/components/BottomNav'
 import { Loader } from '@/components/ui/loader'
 import { BadgePopup } from '@/components/BadgePopup'
+import { NativeInit } from '@/components/NativeInit'
 import { ErrorBoundary } from '@/components/ErrorBoundary'
+import { isNative } from '@/lib/platform'
 import { useBadgeChecker } from '@/hooks/useBadgeChecker'
 
 const queryClient = new QueryClient({
@@ -84,7 +86,7 @@ function AppRoutes() {
         {/* Public routes */}
         <Route
           path="/"
-          element={user ? <Navigate to="/dashboard" replace /> : <LandingPage />}
+          element={user ? <Navigate to="/dashboard" replace /> : (isNative ? <Navigate to="/login" replace /> : <LandingPage />)}
         />
         <Route
           path="/login"
@@ -207,6 +209,7 @@ function AppRoutes() {
 export default function App() {
   return (
     <ErrorBoundary>
+      <NativeInit />
       <QueryClientProvider client={queryClient}>
         <AuthProvider>
           <BrowserRouter>

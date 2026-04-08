@@ -1,6 +1,23 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
+import { Capacitor, registerPlugin } from '@capacitor/core'
 
-const GOOGLE_CLIENT_ID = import.meta.env.VITE_GOOGLE_CLIENT_ID || ''
+const GOOGLE_WEB_CLIENT_ID = import.meta.env.VITE_GOOGLE_CLIENT_ID || ''
+const GOOGLE_IOS_CLIENT_ID = import.meta.env.VITE_GOOGLE_IOS_CLIENT_ID || ''
+const GOOGLE_CLIENT_ID = Capacitor.isNativePlatform() ? GOOGLE_IOS_CLIENT_ID : GOOGLE_WEB_CLIENT_ID
+
+// Register the native GoogleAuth plugin (defined in GoogleAuthPlugin.swift)
+interface GoogleAuthPlugin {
+  initialize(options: { clientId: string; serverClientId?: string; scopes?: string[] }): Promise<void>
+  signIn(options: { scopes: string[] }): Promise<{
+    authentication?: { idToken?: string; accessToken?: string }
+    email?: string
+    name?: string
+    id?: string
+  }>
+  signOut(): Promise<void>
+}
+
+const NativeGoogleAuth = registerPlugin<GoogleAuthPlugin>('GoogleAuth')
 
 interface UseGoogleAuthOptions {
   onCredential: (credential: string) => void
@@ -23,6 +40,21 @@ export function useGoogleAuth({ onCredential, onError }: UseGoogleAuthOptions) {
       return
     }
 
+    // Native: use our custom Capacitor GoogleAuth plugin
+    if (Capacitor.isNativePlatform()) {
+      NativeGoogleAuth.initialize({
+        clientId: GOOGLE_CLIENT_ID,
+        serverClientId: GOOGLE_WEB_CLIENT_ID,
+        scopes: ['email', 'profile'],
+      }).then(() => {
+        setIsReady(true)
+      }).catch((err) => {
+        errorRef.current?.(`Failed to initialize native Google Auth: ${err}`)
+      })
+      return
+    }
+
+    // Web: use Google Identity Services (GSI) script
     const initialize = () => {
       if (window.google?.accounts?.id) {
         window.google.accounts.id.initialize({
@@ -46,6 +78,26 @@ export function useGoogleAuth({ onCredential, onError }: UseGoogleAuthOptions) {
     }
   }, [])
 
+  const signIn = useCallback(async () => {
+    if (Capacitor.isNativePlatform()) {
+      try {
+        const result = await NativeGoogleAuth.signIn({ scopes: ['email', 'profile'] })
+        if (result.authentication?.idToken) {
+          callbackRef.current(result.authentication.idToken)
+        } else {
+          errorRef.current?.('No ID token received from Google')
+        }
+      } catch (err) {
+        errorRef.current?.(err instanceof Error ? err.message : 'Google sign-in failed')
+      }
+      return
+    }
+    // Web: trigger One Tap prompt
+    if (window.google?.accounts?.id) {
+      window.google.accounts.id.prompt()
+    }
+  }, [])
+
   const prompt = useCallback(() => {
     if (window.google?.accounts?.id) {
       window.google.accounts.id.prompt()
@@ -58,5 +110,5 @@ export function useGoogleAuth({ onCredential, onError }: UseGoogleAuthOptions) {
     }
   }, [])
 
-  return { isReady, prompt, renderButton }
+  return { isReady, signIn, prompt, renderButton }
 }
