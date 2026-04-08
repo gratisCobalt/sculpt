@@ -47,7 +47,6 @@ Eine Fitness-App zum Tracken von Workouts und Trainingsfortschritt. Läuft im Br
 | Datenbank | Cloudflare D1 |
 | KI | Ollama |
 | iOS | Capacitor 8 |
-| Analytics | PostHog |
 | Deployment | Cloudflare Pages |
 
 ## Getting Started
