@@ -1,5 +1,5 @@
-import { useState } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useDeferredValue, useEffect, useState } from 'react'
+import { useNavigate, useSearchParams } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import {
   Users,
@@ -15,27 +15,19 @@ import {
   Swords,
   Timer,
   Zap,
+  AlertCircle,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
-import { cn } from '@/lib/utils'
+import { cn, getFirstName, getFirstNameAvatarUrl } from '@/lib/utils'
 import { api } from '@/lib/api'
-import type { LeaderboardUser, Challenge } from '@/lib/api'
+import type { BuddyConnection, BuddySearchResult, LeaderboardUser, Challenge } from '@/lib/api'
 import { haptics } from '@/lib/haptics'
 import { useAuth } from '@/hooks/useAuth'
 import ChallengeModal from '@/components/ChallengeModal'
 
 type TabType = 'buddies' | 'rang' | 'challenges'
-
-// Fitness goal emoji mapping
-const GOAL_EMOJIS: Record<string, string> = {
-  muscle_gain: '💪',
-  fat_loss: '🔥',
-  strength: '⚡',
-  endurance: '🏃',
-  general: '❤️',
-}
 
 // League icon mapping
 const LEAGUE_ICONS: Record<string, string> = {
@@ -47,17 +39,45 @@ const LEAGUE_ICONS: Record<string, string> = {
   champion: '👑',
 }
 
+function getBuddyErrorMessage(error: Error): string {
+  const messages: Record<string, string> = {
+    'Friendship already exists': 'Mit dieser Person besteht bereits eine Anfrage oder Buddy-Verbindung.',
+    'User not found': 'Diese Person konnte nicht mehr gefunden werden.',
+    'Buddy connection not found': 'Diese Buddy-Verbindung besteht nicht mehr.',
+  }
+  return messages[error.message] || 'Das hat gerade nicht geklappt. Bitte versuche es erneut.'
+}
+
 export default function BuddyPage() {
   const { user } = useAuth()
   const navigate = useNavigate()
+  const [searchParams, setSearchParams] = useSearchParams()
   const queryClient = useQueryClient()
   const [activeTab, setActiveTab] = useState<TabType>('buddies')
   const [searchQuery, setSearchQuery] = useState('')
   const [isSearching, setIsSearching] = useState(false)
   const [showChallengeModal, setShowChallengeModal] = useState(false)
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const [selectedBuddyForChallenge, setSelectedBuddyForChallenge] = useState<any | null>(null)
-  const [showRequestsSheet, setShowRequestsSheet] = useState(false)
+  const [selectedBuddyForChallenge, setSelectedBuddyForChallenge] = useState<BuddyConnection | null>(null)
+  const [showRequestsSheet, setShowRequestsSheet] = useState(searchParams.get('tab') === 'requests')
+  const [feedback, setFeedback] = useState<{ type: 'success' | 'error'; message: string } | null>(null)
+  const deferredSearchQuery = useDeferredValue(searchQuery.trim())
+
+  useEffect(() => {
+    if (!feedback) return
+    const timeout = window.setTimeout(() => setFeedback(null), 4_000)
+    return () => window.clearTimeout(timeout)
+  }, [feedback])
+
+  const closeRequestsSheet = () => {
+    setShowRequestsSheet(false)
+    if (searchParams.get('tab') === 'requests') {
+      const next = new URLSearchParams(searchParams)
+      next.delete('tab')
+      setSearchParams(next, { replace: true })
+    }
+  }
+
+  const requestsSheetOpen = showRequestsSheet || searchParams.get('tab') === 'requests'
 
   // Fetch buddies
   const { data: buddies = [], isLoading: buddiesLoading } = useQuery({
@@ -89,9 +109,9 @@ export default function BuddyPage() {
 
   // Search users
   const { data: searchResults = [], isLoading: searchLoading } = useQuery({
-    queryKey: ['userSearch', searchQuery],
-    queryFn: () => api.searchUsers(searchQuery),
-    enabled: searchQuery.length >= 2 && isSearching,
+    queryKey: ['userSearch', deferredSearchQuery],
+    queryFn: () => api.searchUsers(deferredSearchQuery),
+    enabled: deferredSearchQuery.length >= 2 && isSearching,
   })
 
   // Mutations
@@ -100,9 +120,10 @@ export default function BuddyPage() {
     onSuccess: () => {
       haptics.success()
       queryClient.invalidateQueries({ queryKey: ['buddies'] })
-      setSearchQuery('')
-      setIsSearching(false)
+      queryClient.invalidateQueries({ queryKey: ['userSearch'] })
+      setFeedback({ type: 'success', message: 'Buddy-Anfrage wurde gesendet.' })
     },
+    onError: (error) => setFeedback({ type: 'error', message: getBuddyErrorMessage(error) }),
   })
 
   const respondRequestMutation = useMutation({
@@ -111,7 +132,35 @@ export default function BuddyPage() {
     onSuccess: () => {
       haptics.success()
       queryClient.invalidateQueries({ queryKey: ['buddies'] })
+      queryClient.invalidateQueries({ queryKey: ['leaderboard'] })
+      setFeedback({ type: 'success', message: 'Anfrage wurde aktualisiert.' })
     },
+    onError: (error) => setFeedback({ type: 'error', message: getBuddyErrorMessage(error) }),
+  })
+
+  const removeConnectionMutation = useMutation({
+    mutationFn: (friendshipId: number) => api.removeBuddy(friendshipId),
+    onSuccess: () => {
+      haptics.success()
+      queryClient.invalidateQueries({ queryKey: ['buddies'] })
+      queryClient.invalidateQueries({ queryKey: ['userSearch'] })
+      setFeedback({ type: 'success', message: 'Anfrage wurde zurückgezogen.' })
+    },
+    onError: (error) => setFeedback({ type: 'error', message: getBuddyErrorMessage(error) }),
+  })
+
+  const reminderMutation = useMutation({
+    mutationFn: (friendshipId: number) => api.sendBuddyReminder(friendshipId),
+    onSuccess: () => {
+      haptics.success()
+      setFeedback({ type: 'success', message: 'Trainings-Erinnerung wurde gesendet.' })
+    },
+    onError: (error) => setFeedback({
+      type: 'error',
+      message: error.message === 'Reminder already sent recently'
+        ? 'Du hast diesem Buddy vor Kurzem schon eine Erinnerung geschickt.'
+        : error.message,
+    }),
   })
 
   const acceptChallengeMutation = useMutation({
@@ -134,14 +183,27 @@ export default function BuddyPage() {
   const runningChallenges = activeChallenges.filter(c => c.status === 'active')
   const sentChallenges = activeChallenges.filter(c => c.status === 'pending' && c.challenger_id === user?.id)
 
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const handleStartChallenge = (buddy: any) => {
+  const handleStartChallenge = (buddy: BuddyConnection) => {
     setSelectedBuddyForChallenge(buddy)
     setShowChallengeModal(true)
   }
 
   return (
     <div className="min-h-screen pb-24 safe-top">
+      {feedback && (
+        <div
+          role={feedback.type === 'error' ? 'alert' : 'status'}
+          className={cn(
+            'fixed top-[calc(env(safe-area-inset-top)+1rem)] left-1/2 -translate-x-1/2 z-[120] w-[calc(100%-2rem)] max-w-md rounded-xl border px-4 py-3 shadow-lg flex items-center gap-2',
+            feedback.type === 'error'
+              ? 'bg-red-950/95 border-red-500/40 text-red-100'
+              : 'bg-[hsl(var(--card))] border-[hsl(var(--primary))]/40'
+          )}
+        >
+          {feedback.type === 'error' ? <AlertCircle className="w-4 h-4 shrink-0" /> : <Check className="w-4 h-4 shrink-0 text-[hsl(var(--primary))]" />}
+          <span className="text-sm">{feedback.message}</span>
+        </div>
+      )}
       {/* Header */}
       <div className="px-6 pt-6 pb-4">
         <div className="flex items-center justify-between mb-4">
@@ -159,6 +221,7 @@ export default function BuddyPage() {
               size="icon"
               className="relative"
               onClick={() => setShowRequestsSheet(true)}
+              aria-label={`Buddy-Anfragen${pendingRequests.length ? ` (${pendingRequests.length} offen)` : ''}`}
             >
               <Bell className="w-5 h-5" />
               {pendingRequests.length > 0 && (
@@ -172,6 +235,7 @@ export default function BuddyPage() {
               variant="ghost"
               size="icon"
               onClick={() => setIsSearching(!isSearching)}
+              aria-label={isSearching ? 'Buddy-Suche schließen' : 'Buddy hinzufügen'}
             >
               <UserPlus className="w-5 h-5" />
             </Button>
@@ -195,20 +259,20 @@ export default function BuddyPage() {
             {/* Search Results */}
             {searchQuery.length >= 2 && (
               <div className="mt-2 space-y-2">
-                {searchLoading ? (
+                {searchLoading || deferredSearchQuery !== searchQuery.trim() ? (
                   <p className="text-sm text-[hsl(var(--muted-foreground))] text-center py-4">
                     Suche...
                   </p>
                 ) : searchResults.length > 0 ? (
-                  searchResults.map((searchUser) => (
+                  searchResults.map((searchUser: BuddySearchResult) => (
                     <Card key={searchUser.id}>
                       <CardContent className="p-3 flex items-center justify-between">
                         <div className="flex items-center gap-3">
                           <div className="w-10 h-10 rounded-full bg-[hsl(var(--surface-strong))] flex items-center justify-center">
                             {searchUser.avatar_url ? (
                               <img
-                                src={searchUser.avatar_url}
-                                alt={searchUser.display_name}
+                                src={getFirstNameAvatarUrl(searchUser.avatar_url, searchUser.display_name) || undefined}
+                                alt={getFirstName(searchUser.display_name)}
                                 className="w-full h-full rounded-full object-cover"
                               />
                             ) : (
@@ -216,20 +280,41 @@ export default function BuddyPage() {
                             )}
                           </div>
                           <div>
-                            <p className="font-medium">{searchUser.display_name}</p>
+                            <p className="font-medium">{getFirstName(searchUser.display_name)}</p>
                             <p className="text-xs text-[hsl(var(--muted-foreground))]">
                               {searchUser.current_streak} Wochen Streak
                             </p>
                           </div>
                         </div>
-                        <Button
-                          size="sm"
-                          onClick={() => sendRequestMutation.mutate(searchUser.id)}
-                          disabled={sendRequestMutation.isPending}
-                        >
-                          <UserPlus className="w-4 h-4 mr-1" />
-                          Hinzufügen
-                        </Button>
+                        {searchUser.relationship_status === 'accepted' ? (
+                          <Button size="sm" variant="secondary" disabled>
+                            <Check className="w-4 h-4 mr-1" />
+                            Buddy
+                          </Button>
+                        ) : searchUser.relationship_status === 'pending' ? (
+                          <Button
+                            size="sm"
+                            variant="secondary"
+                            onClick={() => searchUser.relationship_direction === 'received' && setShowRequestsSheet(true)}
+                            disabled={searchUser.relationship_direction === 'sent'}
+                          >
+                            <Clock className="w-4 h-4 mr-1" />
+                            {searchUser.relationship_direction === 'received' ? 'Antworten' : 'Ausstehend'}
+                          </Button>
+                        ) : searchUser.relationship_status === 'blocked' ? (
+                          <Button size="sm" variant="secondary" disabled>
+                            Nicht verfügbar
+                          </Button>
+                        ) : (
+                          <Button
+                            size="sm"
+                            onClick={() => sendRequestMutation.mutate(searchUser.id)}
+                            disabled={sendRequestMutation.isPending && sendRequestMutation.variables === searchUser.id}
+                          >
+                            <UserPlus className="w-4 h-4 mr-1" />
+                            Hinzufügen
+                          </Button>
+                        )}
                       </CardContent>
                     </Card>
                   ))
@@ -283,9 +368,11 @@ export default function BuddyPage() {
                 <BuddyCard
                   key={buddy.friendship_id}
                   buddy={buddy}
+                  onRemind={() => reminderMutation.mutate(buddy.friendship_id)}
+                  isReminding={reminderMutation.isPending && reminderMutation.variables === buddy.friendship_id}
                   onChat={() => navigate(`/buddies/${buddy.id}/chat`, {
                     state: {
-                      buddyName: buddy.display_name,
+                      buddyName: getFirstName(buddy.display_name),
                       avatarUrl: buddy.avatar_url,
                       friendshipId: buddy.friendship_id
                     }
@@ -320,11 +407,19 @@ export default function BuddyPage() {
                           <Users className="w-5 h-5 text-[hsl(var(--muted-foreground))]" />
                         </div>
                         <div>
-                          <p className="font-medium">{request.display_name}</p>
+                          <p className="font-medium">{getFirstName(request.display_name)}</p>
                           <p className="text-xs text-[hsl(var(--muted-foreground))]">Ausstehend</p>
                         </div>
                       </div>
-                      <Clock className="w-4 h-4 text-[hsl(var(--muted-foreground))]" />
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        onClick={() => removeConnectionMutation.mutate(request.friendship_id)}
+                        disabled={removeConnectionMutation.isPending && removeConnectionMutation.variables === request.friendship_id}
+                      >
+                        <X className="w-4 h-4 mr-1" />
+                        Zurückziehen
+                      </Button>
                     </CardContent>
                   </Card>
                 ))}
@@ -389,7 +484,7 @@ export default function BuddyPage() {
               <p className="text-center text-[hsl(var(--muted-foreground))] py-8">Lädt...</p>
             ) : leaderboardData?.leaderboard && leaderboardData.leaderboard.length > 0 ? (
               <div className="space-y-2">
-                {leaderboardData.leaderboard.slice(0, 50).map((entry) => (
+                {leaderboardData.leaderboard.map((entry) => (
                   <LeaderboardRow
                     key={entry.id}
                     entry={entry}
@@ -502,12 +597,12 @@ export default function BuddyPage() {
       )}
 
       {/* Requests Sheet */}
-      {showRequestsSheet && (
+      {requestsSheetOpen && (
         <div className="fixed inset-0 z-[100] flex items-end justify-center">
           {/* Backdrop */}
           <div
             className="absolute inset-0 bg-black/60 backdrop-blur-sm"
-            onClick={() => setShowRequestsSheet(false)}
+            onClick={closeRequestsSheet}
           />
 
           {/* Sheet */}
@@ -523,7 +618,7 @@ export default function BuddyPage() {
                   </span>
                 )}
               </div>
-              <Button variant="ghost" size="icon" onClick={() => setShowRequestsSheet(false)}>
+              <Button variant="ghost" size="icon" onClick={closeRequestsSheet} aria-label="Anfragen schließen">
                 <X className="w-5 h-5" />
               </Button>
             </div>
@@ -540,7 +635,7 @@ export default function BuddyPage() {
                             <Users className="w-6 h-6 text-[hsl(var(--muted-foreground))]" />
                           </div>
                           <div>
-                            <p className="font-semibold">{request.display_name}</p>
+                            <p className="font-semibold">{getFirstName(request.display_name)}</p>
                             <p className="text-sm text-[hsl(var(--muted-foreground))]">
                               möchte dein Buddy sein
                             </p>
@@ -601,11 +696,15 @@ export default function BuddyPage() {
 function BuddyCard({
   buddy,
   onChat,
+  onRemind,
+  isReminding,
 }: {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  buddy: any
+  buddy: BuddyConnection
   onChat: () => void
+  onRemind: () => void
+  isReminding: boolean
 }) {
+  const firstName = getFirstName(buddy.display_name)
   const lastWorkout = buddy.last_workout_at
     ? new Date(buddy.last_workout_at as string)
     : null
@@ -620,8 +719,8 @@ function BuddyCard({
             <div className="w-12 h-12 rounded-full bg-[hsl(var(--surface-strong))] flex items-center justify-center overflow-hidden">
               {buddy.avatar_url ? (
                 <img
-                  src={buddy.avatar_url}
-                  alt={buddy.display_name}
+                  src={getFirstNameAvatarUrl(buddy.avatar_url, buddy.display_name) || undefined}
+                  alt={firstName}
                   className="w-full h-full object-cover"
                 />
               ) : (
@@ -633,12 +732,7 @@ function BuddyCard({
             )}
           </div>
           <div className="flex-1">
-            <div className="flex items-center gap-1.5">
-              <p className="font-semibold">{buddy.display_name}</p>
-              {buddy.fitness_goal && (
-                <span className="text-sm">{GOAL_EMOJIS[buddy.fitness_goal] || '❤️'}</span>
-              )}
-            </div>
+            <p className="font-semibold">{firstName}</p>
             <div className="flex items-center gap-2 text-xs text-[hsl(var(--muted-foreground))]">
               {buddy.friend_streak > 0 && (
                 <span className="flex items-center gap-1 text-orange-500">
@@ -653,6 +747,18 @@ function BuddyCard({
               </span>
             </div>
           </div>
+          <Button
+            size="icon"
+            variant="ghost"
+            aria-label={`${firstName} ans Training erinnern`}
+            disabled={isReminding}
+            onClick={(event) => {
+              event.stopPropagation()
+              onRemind()
+            }}
+          >
+            <Bell className="w-4 h-4" />
+          </Button>
           <MessageCircle className="w-5 h-5 text-[hsl(var(--muted-foreground))]" />
         </div>
       </CardContent>
@@ -661,6 +767,8 @@ function BuddyCard({
 }
 
 function LeaderboardRow({ entry, isCurrentUser }: { entry: LeaderboardUser; isCurrentUser: boolean }) {
+  const firstName = getFirstName(entry.display_name)
+  const weeklyTrainingDays = entry.weekly_training_days ?? entry.weekly_workouts ?? entry.weekly_workout_count ?? 0
   const getRankIcon = (rank: number) => {
     if (rank === 1) return '🥇'
     if (rank === 2) return '🥈'
@@ -677,8 +785,8 @@ function LeaderboardRow({ entry, isCurrentUser }: { entry: LeaderboardUser; isCu
         <div className="w-10 h-10 rounded-full bg-[hsl(var(--surface-strong))] flex items-center justify-center overflow-hidden flex-shrink-0">
           {entry.avatar_url ? (
             <img
-              src={entry.avatar_url}
-              alt={entry.display_name}
+              src={getFirstNameAvatarUrl(entry.avatar_url, entry.display_name) || undefined}
+              alt={firstName}
               className="w-full h-full object-cover"
             />
           ) : (
@@ -688,11 +796,8 @@ function LeaderboardRow({ entry, isCurrentUser }: { entry: LeaderboardUser; isCu
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-1.5">
             <p className={cn('font-medium truncate', isCurrentUser && 'text-[hsl(var(--primary))]')}>
-              {entry.display_name}
+              {firstName}
             </p>
-            {entry.fitness_goal && (
-              <span className="text-sm flex-shrink-0">{GOAL_EMOJIS[entry.fitness_goal] || '❤️'}</span>
-            )}
             {entry.is_buddy && !isCurrentUser && (
               <span className="text-xs px-1.5 py-0.5 rounded bg-blue-500/20 text-blue-400">Buddy</span>
             )}
@@ -708,9 +813,9 @@ function LeaderboardRow({ entry, isCurrentUser }: { entry: LeaderboardUser; isCu
           </div>
         </div>
         <div className="text-right">
-          <p className="font-bold text-sm">{((entry as unknown as Record<string, number>).weekly_volume ?? entry.weekly_volume_kg ?? 0).toLocaleString()} kg</p>
+          <p className="font-bold text-sm">{weeklyTrainingDays}</p>
           <p className="text-xs text-[hsl(var(--muted-foreground))]">
-            {((entry as unknown as Record<string, number>).weekly_workouts ?? entry.weekly_workout_count ?? 0)} Training{(((entry as unknown as Record<string, number>).weekly_workouts ?? entry.weekly_workout_count ?? 0)) !== 1 ? 's' : ''}
+            Trainingstag{weeklyTrainingDays !== 1 ? 'e' : ''} diese Woche
           </p>
         </div>
       </CardContent>
@@ -735,8 +840,8 @@ function ChallengeCard({
 }) {
   const isChallenger = challenge.challenger_id === currentUserId
   const opponent = isChallenger
-    ? { name: challenge.opponent_name, avatar: challenge.opponent_avatar, goal: challenge.opponent_goal }
-    : { name: challenge.challenger_name, avatar: challenge.challenger_avatar, goal: challenge.challenger_goal }
+    ? { name: getFirstName(challenge.opponent_name), fullName: challenge.opponent_name, avatar: challenge.opponent_avatar }
+    : { name: getFirstName(challenge.challenger_name), fullName: challenge.challenger_name, avatar: challenge.challenger_avatar }
 
   const myProgress = isChallenger ? challenge.challenger_progress : challenge.opponent_progress
   const theirProgress = isChallenger ? challenge.opponent_progress : challenge.challenger_progress
@@ -754,16 +859,17 @@ function ChallengeCard({
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 rounded-full bg-[hsl(var(--surface-strong))] flex items-center justify-center overflow-hidden">
               {opponent.avatar ? (
-                <img src={opponent.avatar} alt={opponent.name} className="w-full h-full object-cover" />
+                <img
+                  src={getFirstNameAvatarUrl(opponent.avatar, opponent.fullName) || undefined}
+                  alt={opponent.name}
+                  className="w-full h-full object-cover"
+                />
               ) : (
                 <Users className="w-5 h-5 text-[hsl(var(--muted-foreground))]" />
               )}
             </div>
             <div>
-              <div className="flex items-center gap-1.5">
-                <p className="font-semibold">{opponent.name}</p>
-                {opponent.goal && <span>{GOAL_EMOJIS[opponent.goal] || '❤️'}</span>}
-              </div>
+              <p className="font-semibold">{opponent.name}</p>
               <p className="text-xs text-[hsl(var(--muted-foreground))]">
                 {challenge.challenge_type_name}
               </p>

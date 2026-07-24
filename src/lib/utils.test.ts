@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { cn } from './utils'
+import { cn, getFirstName, getFirstNameAvatarUrl } from './utils'
 
 describe('cn utility function', () => {
   it('should merge class names', () => {
@@ -28,5 +28,33 @@ describe('cn utility function', () => {
 
   it('should handle object syntax', () => {
     expect(cn('foo', { bar: true, baz: false })).toBe('foo bar')
+  })
+})
+
+describe('privacy-safe display names', () => {
+  it('returns only the first name and removes attached emoji', () => {
+    expect(getFirstName('  Anna Beispiel  ')).toBe('Anna')
+    expect(getFirstName('Anna💪 Beispiel')).toBe('Anna')
+    expect(getFirstName('Anna🇩🇪 Beispiel')).toBe('Anna')
+    expect(getFirstName('Anna1️⃣ Beispiel')).toBe('Anna')
+  })
+
+  it('uses a safe fallback for empty names', () => {
+    expect(getFirstName('   ')).toBe('Buddy')
+  })
+
+  it('limits generated avatar initials to the first name', () => {
+    const avatarUrl = getFirstNameAvatarUrl(
+      'https://ui-avatars.com/api/?name=Anna+Beispiel&background=111827',
+      'Anna Beispiel'
+    )
+
+    expect(avatarUrl).toContain('name=Anna')
+    expect(avatarUrl).not.toContain('Beispiel')
+  })
+
+  it('does not change uploaded avatar URLs', () => {
+    expect(getFirstNameAvatarUrl('https://cdn.example.com/avatars/123.png', 'Anna Beispiel'))
+      .toBe('https://cdn.example.com/avatars/123.png')
   })
 })
