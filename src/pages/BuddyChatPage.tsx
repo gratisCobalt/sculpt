@@ -5,58 +5,9 @@ import { ArrowLeft, Send, Check, CheckCheck, Users, MoreVertical, Swords, Trash2
 import { api } from '@/lib/api'
 import type { BuddyConnection } from '@/lib/api'
 import { cn, getFirstName, getFirstNameAvatarUrl } from '@/lib/utils'
+import { clearStoredMessages, getStoredMessages, saveMessages, type ChatMessage as Message } from '@/lib/buddyChatStorage'
 import { useAuth } from '@/hooks/useAuth'
 import ChallengeModal from '@/components/ChallengeModal'
-
-interface Message {
-  id: number
-  sender_id: string
-  content: string
-  message_type: 'text' | 'congrats' | 'reminder'
-  is_read: boolean
-  created_at: string
-}
-
-// Helper to get/set messages from localStorage
-const STORAGE_KEY = 'sculpt_chat_messages'
-
-function getStoredMessages(userId: string, buddyId: string): Message[] {
-  try {
-    const stored = localStorage.getItem(`${STORAGE_KEY}:${userId}`)
-    if (!stored) return []
-    const allMessages = JSON.parse(stored) as Record<string, Message[]>
-    return allMessages[buddyId] || []
-  } catch {
-    return []
-  }
-}
-
-function saveMessages(userId: string, buddyId: string, messages: Message[]) {
-  try {
-    const storageKey = `${STORAGE_KEY}:${userId}`
-    const stored = localStorage.getItem(storageKey)
-    const allMessages = stored ? JSON.parse(stored) : {}
-    // Keep only last 100 messages per chat
-    allMessages[buddyId] = messages.slice(-100)
-    localStorage.setItem(storageKey, JSON.stringify(allMessages))
-  } catch {
-    // Ignore storage errors
-  }
-}
-
-function clearStoredMessages(userId: string, buddyId: string) {
-  try {
-    const storageKey = `${STORAGE_KEY}:${userId}`
-    const stored = localStorage.getItem(storageKey)
-    if (!stored) return
-
-    const allMessages = JSON.parse(stored) as Record<string, Message[]>
-    delete allMessages[buddyId]
-    localStorage.setItem(storageKey, JSON.stringify(allMessages))
-  } catch {
-    // Ignore storage errors
-  }
-}
 
 export default function BuddyChatPage() {
   const { buddyId } = useParams<{ buddyId: string }>()
