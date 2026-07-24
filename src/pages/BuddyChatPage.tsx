@@ -25,22 +25,30 @@ interface Buddy {
 
 // Helper to get/set messages from localStorage
 const STORAGE_KEY = 'sculpt_chat_messages'
+const SAFE_BUDDY_ID = /^[A-Za-z0-9_-]+$/
+
+function isSafeBuddyId(id: string): boolean {
+  return SAFE_BUDDY_ID.test(id)
+}
 
 function getStoredMessages(buddyId: string): Message[] {
+  if (!isSafeBuddyId(buddyId)) return []
   try {
     const stored = localStorage.getItem(STORAGE_KEY)
     if (!stored) return []
-    const allMessages = JSON.parse(stored) as Record<string, Message[]>
-    return allMessages[buddyId] || []
+    const parsed = JSON.parse(stored) as Record<string, Message[]>
+    return Object.hasOwn(parsed, buddyId) ? parsed[buddyId] : []
   } catch {
     return []
   }
 }
 
 function saveMessages(buddyId: string, messages: Message[]) {
+  if (!isSafeBuddyId(buddyId)) return
   try {
     const stored = localStorage.getItem(STORAGE_KEY)
-    const allMessages = stored ? JSON.parse(stored) : {}
+    const parsed = stored ? (JSON.parse(stored) as Record<string, Message[]>) : {}
+    const allMessages: Record<string, Message[]> = Object.assign(Object.create(null), parsed)
     // Keep only last 100 messages per chat
     allMessages[buddyId] = messages.slice(-100)
     localStorage.setItem(STORAGE_KEY, JSON.stringify(allMessages))
