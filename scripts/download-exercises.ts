@@ -9,12 +9,18 @@ import fs from 'fs'
 import path from 'path'
 
 const API_BASE = 'https://exercise-db-with-videos-and-images-by-ascendapi.p.rapidapi.com/api/v1'
-const API_KEY = 'af7f90eb4emsh40401dc13b6686fp14cb55jsn447a809b8285'
 const API_HOST = 'exercise-db-with-videos-and-images-by-ascendapi.p.rapidapi.com'
 
-const headers = {
-  'X-RapidAPI-Key': API_KEY,
-  'X-RapidAPI-Host': API_HOST,
+function getHeaders() {
+  const apiKey = process.env.RAPIDAPI_KEY
+  if (!apiKey) {
+    throw new Error('RAPIDAPI_KEY must be set before downloading exercises')
+  }
+
+  return {
+    'X-RapidAPI-Key': apiKey,
+    'X-RapidAPI-Host': API_HOST,
+  }
 }
 
 const OUTPUT_FILE = path.join(process.cwd(), 'data', 'exercises-cache.json')
@@ -55,7 +61,8 @@ async function fetchExercisePage(cursor: string | null): Promise<{ data: Exercis
     ? `${API_BASE}/exercises?limit=50&cursor=${cursor}` 
     : `${API_BASE}/exercises?limit=50`
   
-  const res = await fetch(url, { headers })
+  const res = await fetch(url, { headers: getHeaders() })
+  if (!res.ok) throw new Error(`Exercise API request failed: ${res.status}`)
   const json = await res.json()
   
   if (json.success && json.data) {
@@ -70,7 +77,8 @@ async function fetchExercisePage(cursor: string | null): Promise<{ data: Exercis
 
 async function fetchExerciseDetail(exerciseId: string): Promise<ExerciseDetail | null> {
   try {
-    const res = await fetch(`${API_BASE}/exercises/${exerciseId}`, { headers })
+    const res = await fetch(`${API_BASE}/exercises/${exerciseId}`, { headers: getHeaders() })
+    if (!res.ok) throw new Error(`Exercise API request failed: ${res.status}`)
     const json = await res.json()
     if (json.success) return json.data
     return null

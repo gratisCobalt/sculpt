@@ -10,15 +10,12 @@ Commands:
 """
 
 import argparse
-import json
-import os
 import sys
 import re
 import urllib.request
 from pathlib import Path
 from datetime import datetime
 from collections import defaultdict
-from typing import Optional
 
 # ─────────────────────────────────────────────
 # Configuration
@@ -150,7 +147,6 @@ def cmd_status(args):
             conf = inst.get('confidence', 0.5)
             conf_bar = '█' * int(conf * 10) + '░' * (10 - int(conf * 10))
             trigger = inst.get('trigger', 'unknown trigger')
-            source = inst.get('source', 'unknown')
 
             print(f"  {conf_bar} {int(conf*100):3d}%  {inst.get('id', 'unnamed')}")
             print(f"            trigger: {trigger}")
@@ -166,7 +162,8 @@ def cmd_status(args):
 
     # Observations stats
     if OBSERVATIONS_FILE.exists():
-        obs_count = sum(1 for _ in open(OBSERVATIONS_FILE))
+        with OBSERVATIONS_FILE.open() as observations_file:
+            obs_count = sum(1 for _ in observations_file)
         print(f"─────────────────────────────────────────────────────────")
         print(f"  Observations: {obs_count} events logged")
         print(f"  File: {OBSERVATIONS_FILE}")
@@ -456,7 +453,7 @@ def main():
     subparsers = parser.add_subparsers(dest='command', help='Available commands')
 
     # Status
-    status_parser = subparsers.add_parser('status', help='Show instinct status')
+    subparsers.add_parser('status', help='Show instinct status')
 
     # Import
     import_parser = subparsers.add_parser('import', help='Import instincts')

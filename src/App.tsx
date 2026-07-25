@@ -59,7 +59,7 @@ function ProtectedRoute({ children, fullWidth }: { children: React.ReactNode; fu
   }
 
   // Redirect to onboarding if not completed
-  if (user && !user.onboarding_completed) {
+  if (!user.onboarding_completed) {
     return <Navigate to="/onboarding" replace />
   }
 

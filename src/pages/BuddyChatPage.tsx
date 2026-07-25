@@ -26,12 +26,37 @@ interface Buddy {
 // Helper to get/set messages from localStorage
 const STORAGE_KEY = 'sculpt_chat_messages'
 
+interface StoredChat {
+  buddyId: string
+  messages: Message[]
+}
+
+function parseStoredChats(stored: string | null): StoredChat[] {
+  if (!stored) return []
+
+  const parsed: unknown = JSON.parse(stored)
+  if (Array.isArray(parsed)) {
+    return parsed.filter((chat): chat is StoredChat =>
+      typeof chat === 'object' &&
+      chat !== null &&
+      'buddyId' in chat &&
+      'messages' in chat &&
+      typeof chat.buddyId === 'string' &&
+      Array.isArray(chat.messages),
+    )
+  }
+
+  if (typeof parsed !== 'object' || parsed === null) return []
+
+  return Object.entries(parsed).flatMap(([buddyId, messages]) =>
+    Array.isArray(messages) ? [{ buddyId, messages: messages as Message[] }] : [],
+  )
+}
+
 function getStoredMessages(buddyId: string): Message[] {
   try {
-    const stored = localStorage.getItem(STORAGE_KEY)
-    if (!stored) return []
-    const allMessages = JSON.parse(stored) as Record<string, Message[]>
-    return allMessages[buddyId] || []
+    return parseStoredChats(localStorage.getItem(STORAGE_KEY))
+      .find((chat) => chat.buddyId === buddyId)?.messages ?? []
   } catch {
     return []
   }
@@ -39,11 +64,11 @@ function getStoredMessages(buddyId: string): Message[] {
 
 function saveMessages(buddyId: string, messages: Message[]) {
   try {
-    const stored = localStorage.getItem(STORAGE_KEY)
-    const allMessages = stored ? JSON.parse(stored) : {}
+    const chats = parseStoredChats(localStorage.getItem(STORAGE_KEY))
+      .filter((chat) => chat.buddyId !== buddyId)
     // Keep only last 100 messages per chat
-    allMessages[buddyId] = messages.slice(-100)
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(allMessages))
+    chats.push({ buddyId, messages: messages.slice(-100) })
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(chats))
   } catch {
     // Ignore storage errors
   }
