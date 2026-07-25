@@ -1,53 +1,13 @@
 import { useState, useEffect, useRef } from 'react'
 import { useParams, useNavigate, useLocation } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { ArrowLeft, Send, Check, CheckCheck, Users, MoreVertical, Swords, Trash2 } from 'lucide-react'
+import { ArrowLeft, Send, Check, CheckCheck, Users, MoreVertical, Swords, Trash2, Info } from 'lucide-react'
 import { api } from '@/lib/api'
-import { cn } from '@/lib/utils'
+import type { BuddyConnection } from '@/lib/api'
+import { cn, getFirstName, getFirstNameAvatarUrl } from '@/lib/utils'
+import { clearStoredMessages, getStoredMessages, saveMessages, type ChatMessage as Message } from '@/lib/buddyChatStorage'
 import { useAuth } from '@/hooks/useAuth'
 import ChallengeModal from '@/components/ChallengeModal'
-
-interface Message {
-  id: number
-  sender_id: string
-  content: string
-  message_type: 'text' | 'congrats' | 'reminder'
-  is_read: boolean
-  created_at: string
-}
-
-interface Buddy {
-  id: string
-  display_name: string
-  avatar_url?: string
-  friendship_id: number
-}
-
-// Helper to get/set messages from localStorage
-const STORAGE_KEY = 'sculpt_chat_messages'
-
-function getStoredMessages(buddyId: string): Message[] {
-  try {
-    const stored = localStorage.getItem(STORAGE_KEY)
-    if (!stored) return []
-    const allMessages = JSON.parse(stored) as Record<string, Message[]>
-    return allMessages[buddyId] || []
-  } catch {
-    return []
-  }
-}
-
-function saveMessages(buddyId: string, messages: Message[]) {
-  try {
-    const stored = localStorage.getItem(STORAGE_KEY)
-    const allMessages = stored ? JSON.parse(stored) : {}
-    // Keep only last 100 messages per chat
-    allMessages[buddyId] = messages.slice(-100)
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(allMessages))
-  } catch {
-    // Ignore storage errors
-  }
-}
 
 export default function BuddyChatPage() {
   const { buddyId } = useParams<{ buddyId: string }>()
@@ -58,58 +18,62 @@ export default function BuddyChatPage() {
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const [messageInput, setMessageInput] = useState('')
   const [messages, setMessages] = useState<Message[]>(() =>
-    buddyId ? getStoredMessages(buddyId) : []
+    buddyId && user ? getStoredMessages(user.id, buddyId) : []
   )
   const [showMenu, setShowMenu] = useState(false)
+  const [confirmRemove, setConfirmRemove] = useState(false)
   const [showChallengeModal, setShowChallengeModal] = useState(false)
 
   // Get buddy info from navigation state (instant) or fallback to API
   const buddyFromState = location.state as { buddyName?: string; avatarUrl?: string; friendshipId?: number } | null
 
-  const { data: buddies } = useQuery({
+  const { data: buddies, isLoading: buddiesLoading } = useQuery({
     queryKey: ['buddies'],
     queryFn: api.getBuddies,
   })
 
-  const buddy = buddies?.find((b: Buddy) => b.id === buddyId)
+  const acceptedBuddies = buddies?.filter((item) => item.status === 'accepted') || []
+  const buddy = acceptedBuddies.find((item) => item.id === buddyId)
 
   // Use state data first, then API data
-  const displayName = buddyFromState?.buddyName || buddy?.display_name
+  const fullDisplayName = buddyFromState?.buddyName || buddy?.display_name
+  const displayName = getFirstName(fullDisplayName)
   const avatarUrl = buddyFromState?.avatarUrl || buddy?.avatar_url
   const friendshipId = buddyFromState?.friendshipId || buddy?.friendship_id
 
   // Create buddy object for ChallengeModal - use API buddy if available, otherwise construct from state
-  const buddyForModal = buddy || (buddyId && friendshipId ? {
+  const buddyForModal: BuddyConnection | null = buddy || (buddyId && friendshipId ? {
     id: buddyId,
     display_name: displayName || 'Buddy',
-    avatar_url: avatarUrl,
+    avatar_url: avatarUrl || null,
     friendship_id: friendshipId,
+    current_level: 0,
+    current_streak: 0,
+    fitness_goal: null,
+    last_workout_at: null,
+    friend_streak: 0,
+    last_both_trained_at: null,
+    status: 'accepted',
+    direction: 'received',
+    created_at: '',
   } : null)
 
   // Remove buddy mutation
   const removeBuddyMutation = useMutation({
     mutationFn: (fId: number) => api.removeBuddy(fId),
     onSuccess: () => {
+      if (user && buddyId) clearStoredMessages(user.id, buddyId)
       queryClient.invalidateQueries({ queryKey: ['buddies'] })
       navigate('/buddies')
     },
   })
 
-  // Load messages from localStorage when buddyId changes
-  const prevBuddyId = useRef(buddyId)
-  useEffect(() => {
-    if (buddyId && buddyId !== prevBuddyId.current) {
-      prevBuddyId.current = buddyId
-      // buddyId changed, update via external storage read
-    }
-  }, [buddyId])
-
   // Save messages to localStorage whenever they change
   useEffect(() => {
-    if (buddyId && messages.length > 0) {
-      saveMessages(buddyId, messages)
+    if (buddyId && user) {
+      saveMessages(user.id, buddyId, messages)
     }
-  }, [buddyId, messages])
+  }, [buddyId, messages, user])
 
   // Scroll to bottom on new messages
   useEffect(() => {
@@ -131,12 +95,6 @@ export default function BuddyChatPage() {
     setMessages(prev => [...prev, newMessage])
     setMessageInput('')
 
-    // Simulate read receipt
-    setTimeout(() => {
-      setMessages(prev =>
-        prev.map(m => m.id === newMessage.id ? { ...m, is_read: true } : m)
-      )
-    }, 1500)
   }
 
   const formatTime = (dateStr: string) => {
@@ -164,6 +122,21 @@ export default function BuddyChatPage() {
     return acc
   }, {} as Record<string, Message[]>)
 
+  if (!buddiesLoading && !buddy && !buddyFromState) {
+    return (
+      <div className="min-h-screen flex flex-col items-center justify-center gap-4 px-6 text-center">
+        <Users className="w-10 h-10 text-[hsl(var(--muted-foreground))]" />
+        <div>
+          <h1 className="font-semibold text-lg">Buddy nicht gefunden</h1>
+          <p className="text-sm text-[hsl(var(--muted-foreground))]">Die Verbindung besteht nicht mehr oder ist noch nicht bestätigt.</p>
+        </div>
+        <button className="text-[hsl(var(--primary))] font-medium" onClick={() => navigate('/buddies')}>
+          Zur Buddy-Übersicht
+        </button>
+      </div>
+    )
+  }
+
   return (
     <div className="min-h-screen bg-[hsl(var(--background))] flex flex-col">
       <header className="sticky top-0 z-10 bg-[hsl(var(--card))] border-b border-[hsl(var(--border))] safe-top">
@@ -178,7 +151,11 @@ export default function BuddyChatPage() {
           {/* Avatar */}
           <div className="w-10 h-10 rounded-full bg-[hsl(var(--surface-strong))] flex items-center justify-center overflow-hidden">
             {avatarUrl ? (
-              <img src={avatarUrl} alt="" className="w-full h-full object-cover" />
+              <img
+                src={getFirstNameAvatarUrl(avatarUrl, fullDisplayName) || undefined}
+                alt={displayName}
+                className="w-full h-full object-cover"
+              />
             ) : (
               <Users className="w-5 h-5 text-[hsl(var(--muted-foreground))]" />
             )}
@@ -193,6 +170,7 @@ export default function BuddyChatPage() {
           <div className="relative">
             <button
               onClick={() => setShowMenu(!showMenu)}
+              aria-label="Buddy-Menü öffnen"
               className="p-2 rounded-full hover:bg-[hsl(var(--surface-soft))] transition-colors"
             >
               <MoreVertical className="w-5 h-5" />
@@ -209,23 +187,35 @@ export default function BuddyChatPage() {
                   <Swords className="w-4 h-4" />
                   Challenge starten
                 </button>
-                <button
-                  className="w-full px-3 py-2 text-left text-sm text-red-500 hover:bg-[hsl(var(--surface-soft))] flex items-center gap-2"
-                  onClick={() => {
-                    setShowMenu(false)
-                    if (friendshipId) {
-                      removeBuddyMutation.mutate(friendshipId)
-                    }
-                  }}
-                >
-                  <Trash2 className="w-4 h-4" />
-                  Buddy entfernen
-                </button>
+                {confirmRemove ? (
+                  <div className="px-3 py-2">
+                    <p className="text-xs text-[hsl(var(--muted-foreground))] mb-2">Verbindung und gemeinsamen Chat wirklich entfernen?</p>
+                    <div className="flex gap-2">
+                      <button className="text-xs text-red-500 font-medium" disabled={removeBuddyMutation.isPending} onClick={() => friendshipId && removeBuddyMutation.mutate(friendshipId)}>
+                        {removeBuddyMutation.isPending ? 'Entfernt…' : 'Entfernen'}
+                      </button>
+                      <button className="text-xs" onClick={() => setConfirmRemove(false)}>Abbrechen</button>
+                    </div>
+                  </div>
+                ) : (
+                  <button
+                    className="w-full px-3 py-2 text-left text-sm text-red-500 hover:bg-[hsl(var(--surface-soft))] flex items-center gap-2"
+                    onClick={() => setConfirmRemove(true)}
+                  >
+                    <Trash2 className="w-4 h-4" />
+                    Buddy entfernen
+                  </button>
+                )}
               </div>
             )}
           </div>
         </div>
       </header>
+
+      <div className="mx-4 mt-3 flex items-start gap-2 rounded-lg bg-[hsl(var(--surface-soft))] px-3 py-2 text-xs text-[hsl(var(--muted-foreground))]">
+        <Info className="w-4 h-4 shrink-0 mt-0.5" />
+        <p>Nachrichten werden aktuell nur auf diesem Gerät gespeichert und noch nicht an deinen Buddy übertragen.</p>
+      </div>
 
       {/* Challenge Banner */}
       <div
@@ -252,7 +242,7 @@ export default function BuddyChatPage() {
               <span className="text-4xl">💪</span>
             </div>
             <h2 className="font-semibold text-lg mb-1">
-              Starte den Chat mit {buddy?.display_name || 'deinem Buddy'}
+              Starte den Chat mit {displayName || 'deinem Buddy'}
             </h2>
             <p className="text-sm text-[hsl(var(--muted-foreground))] max-w-xs">
               Motiviert euch gegenseitig und teilt eure Fortschritte!
@@ -324,6 +314,7 @@ export default function BuddyChatPage() {
             onChange={(e) => setMessageInput(e.target.value)}
             onKeyDown={(e) => e.key === 'Enter' && !e.shiftKey && handleSend()}
             placeholder="Nachricht schreiben..."
+            maxLength={1000}
             className="flex-1 bg-[hsl(var(--surface-soft))] rounded-full px-4 py-3 text-[15px] focus:outline-none focus:ring-2 focus:ring-[hsl(var(--primary))]/50 placeholder:text-[hsl(var(--muted-foreground))]"
           />
           <button
@@ -345,7 +336,7 @@ export default function BuddyChatPage() {
       {showChallengeModal && buddyForModal && (
         <ChallengeModal
           buddy={buddyForModal}
-          buddies={buddies || []}
+          buddies={acceptedBuddies}
           onClose={() => setShowChallengeModal(false)}
           onSuccess={() => {
             setShowChallengeModal(false)

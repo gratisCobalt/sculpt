@@ -148,7 +148,7 @@ async function handleSearchUsers(ctx: RequestContext): Promise<Response> {
   if (!userId) return errorResponse('Unauthorized', 401)
 
   try {
-    const query = url.searchParams.get('q') || ''
+    const query = (url.searchParams.get('q') || '').trim().slice(0, 50)
     const limit = Math.min(Math.max(parseInt(url.searchParams.get('limit') || '20'), 1), 100)
 
     if (query.length < 2) {
@@ -156,13 +156,38 @@ async function handleSearchUsers(ctx: RequestContext): Promise<Response> {
     }
 
     const result = await env.database.prepare(`
-      SELECT id, display_name, avatar_url, current_level, fitness_goal
-      FROM app_user
-      WHERE id != ?
-        AND display_name LIKE ?
-        AND onboarding_completed = 1
+      SELECT
+        u.id,
+        u.display_name,
+        u.avatar_url,
+        u.current_level,
+        u.current_streak,
+        u.fitness_goal,
+        fs.code as relationship_status,
+        CASE
+          WHEN f.requester_id = ? THEN 'sent'
+          WHEN f.addressee_id = ? THEN 'received'
+          ELSE NULL
+        END as relationship_direction
+      FROM app_user u
+      LEFT JOIN friendship f ON
+        (f.requester_id = ? AND f.addressee_id = u.id)
+        OR (f.addressee_id = ? AND f.requester_id = u.id)
+      LEFT JOIN friendship_status fs ON fs.id = f.status_id
+      WHERE u.id != ?
+        AND instr(lower(u.display_name), lower(?)) > 0
+        AND u.onboarding_completed = 1
+      ORDER BY CASE
+          WHEN lower(u.display_name) = lower(?) THEN 0
+          WHEN lower(substr(u.display_name, 1, length(?))) = lower(?) THEN 1
+          ELSE 2
+        END,
+        u.display_name COLLATE NOCASE
       LIMIT ?
-    `).bind(userId, `%${query}%`, limit).all()
+    `).bind(
+      userId, userId, userId, userId, userId,
+      query, query, query, query, limit
+    ).all()
 
     return jsonResponse(result.results || [])
   } catch (error) {
@@ -567,4 +592,3 @@ export const onRequest: PagesFunction<Env> = async (context) => {
 
   return errorResponse('Not found', 404)
 }
-

@@ -1,10 +1,10 @@
 import { useState } from 'react'
 import { useMutation, useQuery } from '@tanstack/react-query'
-import { X, Users, Swords, Timer, Zap, Dumbbell, Target, TrendingUp } from 'lucide-react'
+import { X, Users, Swords, Timer, Zap, Dumbbell, Target, TrendingUp, AlertCircle } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
-import { cn } from '@/lib/utils'
+import { cn, getFirstName, getFirstNameAvatarUrl } from '@/lib/utils'
 import { api } from '@/lib/api'
 import type { ChallengeType } from '@/lib/api'
 
@@ -35,6 +35,11 @@ const CHALLENGE_TYPE_ICONS: Record<string, typeof TrendingUp> = {
   exercise_volume: Target,
 }
 
+function toLocalDateTimeInput(date: Date): string {
+  const offset = date.getTimezoneOffset() * 60_000
+  return new Date(date.getTime() - offset).toISOString().slice(0, 16)
+}
+
 export default function ChallengeModal({ buddy, buddies, onClose, onSuccess }: ChallengeModalProps) {
   const [step, setStep] = useState<'type' | 'duration' | 'wager' | 'confirm'>('type')
   const [selectedBuddy, setSelectedBuddy] = useState(buddy)
@@ -42,9 +47,10 @@ export default function ChallengeModal({ buddy, buddies, onClose, onSuccess }: C
   const [selectedDuration, setSelectedDuration] = useState<string>('1d')
   const [customEndDate, setCustomEndDate] = useState<string>('')
   const [wagerCoins, setWagerCoins] = useState<number>(0)
+  const [minimumEndTime] = useState(() => Date.now() + 5 * 60_000)
 
   // Fetch challenge types
-  const { data: challengeTypes = [] } = useQuery({
+  const { data: challengeTypes = [], isLoading: challengeTypesLoading, isError: challengeTypesError } = useQuery({
     queryKey: ['challengeTypes'],
     queryFn: () => api.getChallengeTypes(),
   })
@@ -67,12 +73,16 @@ export default function ChallengeModal({ buddy, buddies, onClose, onSuccess }: C
     return DURATION_PRESETS.find(d => d.id === selectedDuration)?.xp || 100
   }
 
+  const customDateIsInvalid = selectedDuration === 'custom' && (
+    !customEndDate || new Date(customEndDate).getTime() <= minimumEndTime
+  )
+
   return (
     <div className="fixed inset-0 z-[100] flex items-end sm:items-center justify-center">
       {/* Backdrop */}
       <div
         className="absolute inset-0 bg-black/60 backdrop-blur-sm"
-        onClick={onClose}
+        onClick={() => !createChallengeMutation.isPending && onClose()}
       />
 
       {/* Modal */}
@@ -112,12 +122,16 @@ export default function ChallengeModal({ buddy, buddies, onClose, onSuccess }: C
                     >
                       <div className="w-8 h-8 rounded-full bg-[hsl(var(--surface-strong))] flex items-center justify-center overflow-hidden">
                         {b.avatar_url ? (
-                          <img src={b.avatar_url} alt={b.display_name} className="w-full h-full object-cover" />
+                          <img
+                            src={getFirstNameAvatarUrl(b.avatar_url, b.display_name) || undefined}
+                            alt={getFirstName(b.display_name)}
+                            className="w-full h-full object-cover"
+                          />
                         ) : (
                           <Users className="w-4 h-4 text-[hsl(var(--muted-foreground))]" />
                         )}
                       </div>
-                      <span className="text-sm font-medium">{b.display_name}</span>
+                      <span className="text-sm font-medium">{getFirstName(b.display_name)}</span>
                     </button>
                   ))}
                 </div>
@@ -129,6 +143,15 @@ export default function ChallengeModal({ buddy, buddies, onClose, onSuccess }: C
                   Challenge-Typ
                 </label>
                 <div className="space-y-2">
+                  {challengeTypesLoading && (
+                    <p className="text-sm text-[hsl(var(--muted-foreground))] text-center py-4">Challenge-Typen werden geladen…</p>
+                  )}
+                  {challengeTypesError && (
+                    <div role="alert" className="flex items-center gap-2 rounded-lg border border-red-500/30 bg-red-500/10 p-3 text-sm text-red-400">
+                      <AlertCircle className="w-4 h-4 shrink-0" />
+                      Challenge-Typen konnten nicht geladen werden.
+                    </div>
+                  )}
                   {challengeTypes.map((type) => {
                     const Icon = CHALLENGE_TYPE_ICONS[type.code] || Target
                     return (
@@ -206,8 +229,11 @@ export default function ChallengeModal({ buddy, buddies, onClose, onSuccess }: C
                     type="datetime-local"
                     value={customEndDate}
                     onChange={(e) => setCustomEndDate(e.target.value)}
-                    min={new Date().toISOString().slice(0, 16)}
+                    min={toLocalDateTimeInput(new Date(minimumEndTime))}
                   />
+                  {customDateIsInvalid && customEndDate && (
+                    <p className="text-xs text-red-400 mt-1">Wähle einen Zeitpunkt, der mindestens fünf Minuten in der Zukunft liegt.</p>
+                  )}
                 </div>
               )}
             </div>
@@ -253,12 +279,16 @@ export default function ChallengeModal({ buddy, buddies, onClose, onSuccess }: C
                     <div className="flex items-center gap-2">
                       <div className="w-6 h-6 rounded-full bg-[hsl(var(--surface-strong))] overflow-hidden">
                         {selectedBuddy.avatar_url ? (
-                          <img src={selectedBuddy.avatar_url} className="w-full h-full object-cover" />
+                          <img
+                            src={getFirstNameAvatarUrl(selectedBuddy.avatar_url, selectedBuddy.display_name) || undefined}
+                            alt={getFirstName(selectedBuddy.display_name)}
+                            className="w-full h-full object-cover"
+                          />
                         ) : (
                           <Users className="w-4 h-4" />
                         )}
                       </div>
-                      <span className="font-medium">{selectedBuddy.display_name}</span>
+                      <span className="font-medium">{getFirstName(selectedBuddy.display_name)}</span>
                     </div>
                   </div>
                   <div className="flex items-center justify-between">
@@ -287,6 +317,13 @@ export default function ChallengeModal({ buddy, buddies, onClose, onSuccess }: C
               </Card>
             </div>
           )}
+
+          {createChallengeMutation.isError && (
+            <div role="alert" className="mt-4 flex items-center gap-2 rounded-lg border border-red-500/30 bg-red-500/10 p-3 text-sm text-red-400">
+              <AlertCircle className="w-4 h-4 shrink-0" />
+              Die Challenge konnte nicht gesendet werden. Prüfe deinen Einsatz und versuche es erneut.
+            </div>
+          )}
         </div>
 
         {/* Footer */}
@@ -308,7 +345,7 @@ export default function ChallengeModal({ buddy, buddies, onClose, onSuccess }: C
             className="flex-1"
             disabled={
               (step === 'type' && !selectedType) ||
-              (step === 'duration' && selectedDuration === 'custom' && !customEndDate) ||
+              (step === 'duration' && customDateIsInvalid) ||
               createChallengeMutation.isPending
             }
             onClick={() => {

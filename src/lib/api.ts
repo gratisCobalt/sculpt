@@ -5,6 +5,33 @@ import { Capacitor } from '@capacitor/core'
 const API_BASE = import.meta.env.VITE_API_BASE_URL ||
   (Capacitor.isNativePlatform() ? 'https://sculpt-app.de' : '')
 
+export interface BuddyConnection {
+  friendship_id: number
+  id: string
+  display_name: string
+  avatar_url: string | null
+  current_level: number
+  current_streak: number
+  fitness_goal: string | null
+  last_workout_at: string | null
+  friend_streak: number
+  last_both_trained_at: string | null
+  status: 'pending' | 'accepted'
+  direction: 'sent' | 'received'
+  created_at: string
+}
+
+export interface BuddySearchResult {
+  id: string
+  display_name: string
+  avatar_url: string | null
+  current_level: number
+  current_streak: number
+  fitness_goal: string | null
+  relationship_status: 'pending' | 'accepted' | 'blocked' | null
+  relationship_direction: 'sent' | 'received' | null
+}
+
 class ApiClient {
   private token: string | null = null
 
@@ -445,13 +472,11 @@ class ApiClient {
   // =====================================================
 
   async searchUsers(query: string) {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    return this.request<any[]>(`/api/users/search?q=${encodeURIComponent(query)}`)
+    return this.request<BuddySearchResult[]>(`/api/users/search?q=${encodeURIComponent(query)}`)
   }
 
   async getBuddies() {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    return this.request<any[]>('/api/buddies')
+    return this.request<BuddyConnection[]>('/api/buddies')
   }
 
   async sendFriendRequest(userId: string) {
@@ -555,9 +580,10 @@ class ApiClient {
     })
   }
 
-  async getMessages(friendshipId: number, limit = 50, before?: string) {
+  async getMessages(friendshipId: number, limit = 50, before?: string, beforeId?: number) {
     let url = `/api/buddies/${friendshipId}/messages?limit=${limit}`
     if (before) url += `&before=${encodeURIComponent(before)}`
+    if (beforeId) url += `&beforeId=${beforeId}`
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     return this.request<any[]>(url)
   }
@@ -811,7 +837,10 @@ export interface LeaderboardUser {
   current_level: number
   league_id: number
   weekly_volume_kg: number
+  weekly_volume: number
+  weekly_training_days: number
   weekly_workout_count: number
+  weekly_workouts: number
   is_fake: boolean
   is_buddy: boolean
   rank: number
